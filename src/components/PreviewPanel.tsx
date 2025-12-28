@@ -1,27 +1,32 @@
-import { useState } from "react";
-import { Monitor, Tablet, Smartphone, RefreshCw, ExternalLink, Code2, Eye, Maximize2 } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Monitor, Tablet, Smartphone, RefreshCw, Code2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeEditor } from "@/components/CodeEditor";
+import { LivePreview } from "@/components/LivePreview";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "preview" | "code";
 type DeviceMode = "desktop" | "tablet" | "mobile";
 
 interface PreviewPanelProps {
-  previewUrl?: string;
   code?: string;
 }
 
-export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("code");
+export function PreviewPanel({ code }: PreviewPanelProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const deviceWidths: Record<DeviceMode, string> = {
     desktop: "w-full",
     tablet: "w-[768px]",
     mobile: "w-[375px]",
   };
+
+  const handleRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-[hsl(var(--preview-bg))] border-l border-border">
@@ -80,14 +85,13 @@ export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
             </Button>
           </div>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleRefresh}
+          >
             <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7">
-            <Maximize2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -101,25 +105,7 @@ export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
           )}
         >
           {viewMode === "preview" ? (
-            <div className="h-full rounded-xl border border-border bg-background overflow-hidden shadow-2xl">
-              {previewUrl ? (
-                <iframe
-                  src={previewUrl}
-                  className="w-full h-full"
-                  title="Preview"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <div className="h-20 w-20 rounded-2xl bg-secondary flex items-center justify-center mb-6">
-                    <Monitor className="h-10 w-10 text-muted-foreground" />
-                  </div>
-                  <h2 className="text-xl font-semibold mb-2">Live Preview</h2>
-                  <p className="text-muted-foreground max-w-sm">
-                    Live preview coming soon. View the generated code in the Code tab.
-                  </p>
-                </div>
-              )}
-            </div>
+            <LivePreview key={refreshKey} code={code || ""} />
           ) : (
             <CodeEditor code={code || ""} />
           )}
