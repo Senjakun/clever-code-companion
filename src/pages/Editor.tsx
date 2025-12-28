@@ -18,7 +18,7 @@ import { useFileSystem } from "@/hooks/useFileSystem";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { findFileById, FileChange } from "@/lib/file-system";
+import { findFileById, FileChange, getAllFiles } from "@/lib/file-system";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ChatSession {
@@ -117,6 +117,17 @@ export default function Editor() {
     return changes;
   };
 
+  // Build file context for AI
+  const buildFileContext = () => {
+    const allFiles = getAllFiles(fileSystem.files);
+    const fileList = allFiles.map(f => `- ${f.id}`).join("\n");
+    const fileContents = allFiles
+      .map(f => `### ${f.id}\n\`\`\`${f.language || "text"}\n${f.content}\n\`\`\``)
+      .join("\n\n");
+    
+    return `## Current Project Files:\n${fileList}\n\n## File Contents:\n${fileContents}`;
+  };
+
   const handleSendMessage = async (content: string) => {
     if (credits <= 0) {
       setShowCreditBlock(true);
@@ -137,6 +148,10 @@ export default function Editor() {
     let fullResponse = "";
 
     try {
+      // Include file context in the prompt
+      const fileContext = buildFileContext();
+      const fullPrompt = `${fileContext}\n\n## User Request:\n${content}`;
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: "POST",
         headers: {
@@ -144,7 +159,7 @@ export default function Editor() {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: [{ role: "user", content }],
+          messages: [{ role: "user", content: fullPrompt }],
           provider: "gemini",
         }),
       });
