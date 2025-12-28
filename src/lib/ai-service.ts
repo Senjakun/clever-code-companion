@@ -1,22 +1,82 @@
 import { AIProvider } from "@/components/SettingsModal";
+import { FileNode, getAllFiles } from "@/lib/file-system";
 
-const SYSTEM_PROMPT = `You are an expert code generator. When the user asks you to create something, generate clean, modern, production-ready code.
+const createSystemPrompt = (files: FileNode[]) => {
+  const allFiles = getAllFiles(files);
+  const fileList = allFiles.map((f) => `- ${f.id}`).join("\n");
+  const fileContents = allFiles
+    .map((f) => `### ${f.id}\n\`\`\`${f.language || "text"}\n${f.content}\n\`\`\``)
+    .join("\n\n");
+
+  return `You are an expert AI code assistant integrated into a code editor. You help users build web applications by modifying and creating files.
+
+## Current Project Files:
+${fileList}
+
+## File Contents:
+${fileContents}
+
+## Instructions:
+When the user asks you to create or modify code:
+
+1. First, briefly explain what you're going to do (1-2 sentences max)
+2. Then output file changes in this EXACT format:
+
+===FILE: path/to/file.tsx===
+\`\`\`tsx
+// Complete file content here
+\`\`\`
+===END_FILE===
 
 Rules:
-1. Always use TypeScript and React with Tailwind CSS
-2. Create complete, working components
-3. Use modern best practices
-4. Include helpful comments
-5. Make the code beautiful and well-structured
+- Use TypeScript and React with Tailwind CSS
+- Always provide COMPLETE file contents, not partial
+- You can modify existing files or create new ones
+- Use modern best practices
+- Make the code beautiful and functional
+- For new files in src folder, use format: src/filename.tsx
+- Always update App.tsx to use new components
 
-When responding:
-1. First briefly explain what you're creating (1-2 sentences)
-2. Then provide the complete code in a code block
+Example response:
+I'll create a new Button component and update App.tsx to use it.
 
-Format your code response like this:
+===FILE: src/components/Button.tsx===
 \`\`\`tsx
-// Your code here
-\`\`\``;
+import React from 'react';
+
+interface ButtonProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+}
+
+export function Button({ children, onClick }: ButtonProps) {
+  return (
+    <button 
+      onClick={onClick}
+      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+    >
+      {children}
+    </button>
+  );
+}
+\`\`\`
+===END_FILE===
+
+===FILE: src/App.tsx===
+\`\`\`tsx
+import React from 'react';
+import { Button } from './components/Button';
+
+export default function App() {
+  return (
+    <div className="p-8">
+      <Button>Click me!</Button>
+    </div>
+  );
+}
+\`\`\`
+===END_FILE===`;
+};
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -36,7 +96,7 @@ export async function generateWithOpenAI(
     },
     body: JSON.stringify({
       model: "gpt-4o",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      messages,
       stream: true,
     }),
   });
@@ -85,18 +145,8 @@ export async function generateWithGemini(
     parts: [{ text: msg.content }],
   }));
 
-  // Add system instruction as first user message if needed
-  contents.unshift({
-    role: "user",
-    parts: [{ text: SYSTEM_PROMPT }],
-  });
-  contents.splice(1, 0, {
-    role: "model",
-    parts: [{ text: "I understand. I'll generate clean, production-ready TypeScript/React code with Tailwind CSS." }],
-  });
-
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
@@ -130,7 +180,6 @@ export async function generateWithGemini(
 
     buffer += decoder.decode(value, { stream: true });
 
-    // Try to parse complete JSON objects from buffer
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
 
@@ -147,7 +196,6 @@ export async function generateWithGemini(
     }
   }
 
-  // Process remaining buffer
   if (buffer.trim()) {
     try {
       const parsed = JSON.parse(buffer.replace(/^\[|\]$/g, "").trim());
@@ -162,14 +210,45 @@ export async function generateWithGemini(
 export async function generateCode(
   provider: AIProvider,
   apiKey: string,
-  messages: Message[],
+  userMessage: string,
+  files: FileNode[],
   onChunk: (chunk: string) => void
 ): Promise<void> {
+  const systemPrompt = createSystemPrompt(files);
+  const messages: Message[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userMessage },
+  ];
+
   if (provider === "openai") {
     return generateWithOpenAI(apiKey, messages, onChunk);
   } else {
-    return generateWithGemini(apiKey, messages, onChunk);
+    // For Gemini, prepend system prompt to user message
+    const geminiMessages: Message[] = [
+      { role: "user", content: systemPrompt + "\n\nUser request: " + userMessage },
+    ];
+    return generateWithGemini(apiKey, geminiMessages, onChunk);
   }
+}
+
+export interface ParsedFileChange {
+  filePath: string;
+  content: string;
+}
+
+export function parseFileChanges(response: string): ParsedFileChange[] {
+  const changes: ParsedFileChange[] = [];
+  const fileRegex = /===FILE:\s*(.+?)===\s*```\w*\n([\s\S]*?)```\s*===END_FILE===/g;
+  
+  let match;
+  while ((match = fileRegex.exec(response)) !== null) {
+    changes.push({
+      filePath: match[1].trim(),
+      content: match[2].trim(),
+    });
+  }
+  
+  return changes;
 }
 
 export function extractCodeFromResponse(response: string): string | null {
