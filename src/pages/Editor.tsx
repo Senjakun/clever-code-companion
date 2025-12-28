@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Github } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, Github, Menu, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { MonacoEditor } from "@/components/MonacoEditor";
@@ -13,11 +13,13 @@ import { CreditBlockModal } from "@/components/CreditBlockModal";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useFileSystem } from "@/hooks/useFileSystem";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { findFileById, FileChange } from "@/lib/file-system";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ChatSession {
   id: string;
@@ -39,6 +41,7 @@ export default function Editor() {
   const { toast } = useToast();
   const { user, credits, loading: authLoading } = useAuthContext();
   const fileSystem = useFileSystem();
+  const isMobile = useIsMobile();
 
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: "1", title: "New conversation", timestamp: new Date(), isActive: true },
@@ -48,6 +51,8 @@ export default function Editor() {
   const [showCreditBlock, setShowCreditBlock] = useState(false);
   const [showGithubSync, setShowGithubSync] = useState(false);
   const [projectName, setProjectName] = useState("Project");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -113,7 +118,6 @@ export default function Editor() {
   };
 
   const handleSendMessage = async (content: string) => {
-    // Check credits
     if (credits <= 0) {
       setShowCreditBlock(true);
       return;
@@ -188,7 +192,6 @@ export default function Editor() {
         }
       }
 
-      // Parse file changes and add as pending
       const changes = parseFileChanges(fullResponse);
       changes.forEach((change) => {
         const existingFile = findFileById(fileSystem.files, change.filePath);
@@ -216,62 +219,115 @@ export default function Editor() {
     );
   }
 
+  const sidebarContent = (
+    <LeftSidebar
+      files={fileSystem.files}
+      activeFileId={fileSystem.activeFileId}
+      sessions={sessions}
+      onFileSelect={(id) => {
+        fileSystem.openFile(id);
+        if (isMobile) setMobileMenuOpen(false);
+      }}
+      onToggleFolder={fileSystem.toggleFolder}
+      onCreateFile={handleCreateFile}
+      onDeleteFile={fileSystem.removeFile}
+      onNewChat={handleNewChat}
+      onSelectChat={handleSelectChat}
+      onDeleteChat={handleDeleteChat}
+    />
+  );
+
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden dark bg-background">
       {/* Top Bar */}
-      <header className="h-12 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-3 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="h-12 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-2 sm:px-3 shrink-0 z-10">
+        <div className="flex items-center gap-2">
+          {/* Mobile menu button */}
+          {isMobile ? (
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0">
+                {sidebarContent}
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 hidden lg:flex"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            >
+              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          )}
+          
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <span className="font-medium text-sm text-foreground truncate max-w-[200px]">{projectName}</span>
+          <span className="font-medium text-sm text-foreground truncate max-w-[120px] sm:max-w-[200px]">{projectName}</span>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-2"
+            className="h-8 gap-2 hidden sm:flex"
             onClick={() => setShowGithubSync(true)}
           >
             <Github className="h-4 w-4" />
             Sync
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 sm:hidden"
+            onClick={() => setShowGithubSync(true)}
+          >
+            <Github className="h-4 w-4" />
           </Button>
           <UserMenu />
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        <LeftSidebar
-          files={fileSystem.files}
-          activeFileId={fileSystem.activeFileId}
-          sessions={sessions}
-          onFileSelect={fileSystem.openFile}
-          onToggleFolder={fileSystem.toggleFolder}
-          onCreateFile={handleCreateFile}
-          onDeleteFile={fileSystem.removeFile}
-          onNewChat={handleNewChat}
-          onSelectChat={handleSelectChat}
-          onDeleteChat={handleDeleteChat}
-        />
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Desktop Sidebar */}
+        {!isMobile && (
+          <AnimatePresence mode="wait">
+            {!sidebarCollapsed && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: "auto", opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="shrink-0 overflow-hidden"
+              >
+                {sidebarContent}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-          <ResizablePanel defaultSize={20} minSize={15}>
+        <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
+          <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
             <ChatPanel messages={messages} onSendMessage={handleSendMessage} isLoading={isLoading} />
           </ResizablePanel>
 
           <ResizableHandle withHandle />
 
-          <ResizablePanel defaultSize={40} minSize={25}>
-            <div className="h-full flex flex-col bg-[hsl(var(--background))]">
+          <ResizablePanel defaultSize={40} minSize={20}>
+            <div className="h-full flex flex-col bg-background min-w-0">
               <EditorTabs
                 tabs={fileSystem.openTabs}
                 activeTab={fileSystem.activeFileId}
                 onSelectTab={fileSystem.openFile}
                 onCloseTab={fileSystem.closeTab}
               />
-              <div className="flex-1">
+              <div className="flex-1 min-h-0">
                 <MonacoEditor
                   value={fileSystem.activeFile?.content || "// Select a file to edit"}
                   language={fileSystem.activeFile?.language || "typescript"}
@@ -283,7 +339,7 @@ export default function Editor() {
 
           <ResizableHandle withHandle />
 
-          <ResizablePanel defaultSize={40} minSize={25}>
+          <ResizablePanel defaultSize={40} minSize={20}>
             <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
           </ResizablePanel>
         </ResizablePanelGroup>

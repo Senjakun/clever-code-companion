@@ -49,9 +49,9 @@ export function LeftSidebar({
   ];
 
   return (
-    <div className="flex h-full bg-sidebar border-r border-sidebar-border">
+    <div className="flex h-full bg-sidebar border-r border-sidebar-border w-full lg:w-auto">
       {/* Icon Bar */}
-      <div className="w-12 flex flex-col items-center py-2 border-r border-sidebar-border bg-sidebar/50">
+      <div className="w-12 flex flex-col items-center py-2 border-r border-sidebar-border bg-sidebar/50 shrink-0">
         {tabs.map((tab) => (
           <Button
             key={tab.id}
@@ -71,7 +71,7 @@ export function LeftSidebar({
       </div>
 
       {/* Panel Content */}
-      <div className="w-56 flex flex-col">
+      <div className="w-full lg:w-56 flex flex-col min-w-0">
         <AnimatePresence mode="wait">
           {activeTab === "files" ? (
             <motion.div
