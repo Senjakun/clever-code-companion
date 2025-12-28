@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Modern dark-first design system for AI dashboard */
+/* Modern dark-first design system for AI Code Editor */
 
 @layer base {
   :root {
@@ -52,23 +52,23 @@
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
 
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
 
     --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 12%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 222 47% 11%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 55%;
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 20% 55%;
 
     --accent: 262 83% 58%;
     --accent-foreground: 0 0% 100%;
@@ -76,22 +76,22 @@
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5% 17%;
-    --input: 240 5% 17%;
+    --border: 222 47% 14%;
+    --input: 222 47% 14%;
     --ring: 262 83% 58%;
 
-    --sidebar-background: 240 10% 5%;
-    --sidebar-foreground: 240 5% 85%;
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 215 20% 75%;
     --sidebar-primary: 262 83% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 5% 10%;
-    --sidebar-accent-foreground: 240 5% 90%;
-    --sidebar-border: 240 5% 12%;
+    --sidebar-accent: 222 47% 10%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 47% 12%;
     --sidebar-ring: 262 83% 58%;
 
     /* Custom tokens */
-    --chat-bg: 240 10% 5%;
-    --preview-bg: 240 10% 8%;
+    --chat-bg: 222 47% 6%;
+    --preview-bg: 222 47% 8%;
     --glow-primary: 262 83% 58%;
   }
 }
