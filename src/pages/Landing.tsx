@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Layout, ShoppingCart, BarChart3, Send, Zap, Code2, Globe } from 'lucide-react';
+import { Sparkles, Layout, BarChart3, ShoppingCart, Zap, Code, Rocket, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,12 +33,30 @@ const templates = [
   },
 ];
 
+const features = [
+  {
+    icon: Zap,
+    title: 'Lightning Fast',
+    description: 'Generate complete applications in seconds, not hours',
+  },
+  {
+    icon: Code,
+    title: 'Production Ready',
+    description: 'Clean, maintainable code following best practices',
+  },
+  {
+    icon: Rocket,
+    title: 'Deploy Instantly',
+    description: 'One-click deployment to share your creations',
+  },
+];
+
 export default function Landing() {
   const [prompt, setPrompt] = useState('');
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, credits, loading } = useAuthContext();
+  const { user, credits, loading: authLoading } = useAuthContext();
 
   const handleCreateProject = async (projectPrompt: string) => {
     if (!user) {
@@ -47,13 +65,12 @@ export default function Landing() {
     }
 
     setCreating(true);
-    const projectName = projectPrompt.slice(0, 50) || 'New Project';
     
     const { data, error } = await supabase
       .from('projects')
       .insert({
         user_id: user.id,
-        name: projectName,
+        name: projectPrompt.slice(0, 50) || 'New Project',
         description: projectPrompt,
       })
       .select()
@@ -81,11 +98,11 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background dark">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-primary" />
             </div>
             <span className="font-bold text-xl text-foreground">Quine AI</span>
           </div>
@@ -111,139 +128,113 @@ export default function Landing() {
       </header>
 
       {/* Hero Section */}
-      <main className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto pt-20 pb-16">
+      <main className="container mx-auto px-4 py-16 md:py-24">
+        <div className="max-w-4xl mx-auto text-center">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
+            transition={{ duration: 0.5 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm mb-6">
-              <Zap className="h-4 w-4" />
-              <span>AI-Powered Code Generation</span>
-            </div>
             <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
               Welcome to{' '}
               <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 Quine AI
               </span>
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12">
               Describe your idea and watch it come to life. Build full-stack applications with the power of AI.
             </p>
           </motion.div>
 
           {/* Prompt Input */}
-          <motion.div
+          <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mb-16"
+            transition={{ duration: 0.5, delay: 0.1 }}
+            onSubmit={handleSubmit}
+            className="max-w-2xl mx-auto mb-16"
           >
-            <form onSubmit={handleSubmit} className="relative">
-              <div className="relative bg-card border border-border rounded-2xl p-2 shadow-2xl shadow-primary/5">
-                <Input
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="What do you want to build?"
-                  className="h-14 text-lg bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4"
-                  disabled={creating}
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 gap-2"
-                  disabled={!prompt.trim() || creating}
-                >
-                  {creating ? (
-                    <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Build
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </motion.div>
+            <div className="relative">
+              <Input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="What do you want to build?"
+                className="h-14 text-lg pl-5 pr-32 rounded-xl border-border bg-card/50 focus:border-primary focus:ring-primary"
+                disabled={creating}
+              />
+              <Button
+                type="submit"
+                disabled={!prompt.trim() || creating}
+                className="absolute right-2 top-2 h-10 gap-2"
+              >
+                {creating ? (
+                  <span className="animate-spin h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
+                ) : (
+                  <>
+                    Start Building
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </motion.form>
 
           {/* Starter Templates */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="mb-20"
           >
-            <h2 className="text-lg font-semibold text-foreground mb-4 text-center">
+            <h2 className="text-lg font-semibold text-muted-foreground mb-6">
               Or start with a template
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {templates.map((template, index) => (
-                <motion.div
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+              {templates.map((template) => (
+                <Card
                   key={template.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
+                  className="group cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/5"
+                  onClick={() => handleCreateProject(template.prompt)}
                 >
-                  <Card
-                    className="group cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
-                    onClick={() => handleCreateProject(template.prompt)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                        <template.icon className="h-6 w-6 text-primary" />
-                      </div>
-                      <h3 className="font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
-                        {template.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{template.description}</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                  <CardContent className="p-6 text-center">
+                    <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
+                      <template.icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-foreground mb-2">{template.name}</h3>
+                    <p className="text-sm text-muted-foreground">{template.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Features */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              {features.map((feature) => (
+                <div key={feature.title} className="text-center">
+                  <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                    <feature.icon className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                </div>
               ))}
             </div>
           </motion.div>
         </div>
-
-        {/* Features */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          className="max-w-4xl mx-auto py-16 border-t border-border/50"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div>
-              <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <Code2 className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">AI Code Generation</h3>
-              <p className="text-sm text-muted-foreground">
-                Write code in plain English and let AI do the heavy lifting
-              </p>
-            </div>
-            <div>
-              <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <Globe className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Live Preview</h3>
-              <p className="text-sm text-muted-foreground">
-                See your changes in real-time as you build
-              </p>
-            </div>
-            <div>
-              <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <Zap className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Deploy Instantly</h3>
-              <p className="text-sm text-muted-foreground">
-                One-click deployment to share your creations
-              </p>
-            </div>
-          </div>
-        </motion.div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-8 mt-auto">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>© 2024 Quine AI. Build faster with artificial intelligence.</p>
+        </div>
+      </footer>
     </div>
   );
 }
