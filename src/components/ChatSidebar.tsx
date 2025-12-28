@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SettingsModal, AIProvider } from "@/components/SettingsModal";
 import { cn } from "@/lib/utils";
 
 interface ChatSession {
@@ -16,11 +17,19 @@ interface ChatSession {
   isActive?: boolean;
 }
 
+interface APIKeys {
+  openai: string;
+  gemini: string;
+}
+
 interface ChatSidebarProps {
   sessions: ChatSession[];
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
+  currentProvider: AIProvider;
+  currentKeys: APIKeys;
+  onSettingsChange: (provider: AIProvider, keys: APIKeys) => void;
 }
 
 export function ChatSidebar({
@@ -28,6 +37,9 @@ export function ChatSidebar({
   onNewChat,
   onSelectChat,
   onDeleteChat,
+  currentProvider,
+  currentKeys,
+  onSettingsChange,
 }: ChatSidebarProps) {
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -40,20 +52,38 @@ export function ChatSidebar({
     return date.toLocaleDateString();
   };
 
+  const hasApiKey = currentProvider === "openai" ? currentKeys.openai : currentKeys.gemini;
+
   return (
     <div className="flex h-full w-64 flex-col bg-sidebar border-r border-sidebar-border">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         <span className="text-lg font-semibold text-sidebar-foreground">Quine AI</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onNewChat}
-          className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <SettingsModal
+            currentProvider={currentProvider}
+            currentKeys={currentKeys}
+            onSettingsChange={onSettingsChange}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onNewChat}
+            className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
+
+      {/* API Status */}
+      {!hasApiKey && (
+        <div className="mx-3 mt-3 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-xs text-destructive">
+            No API key configured. Click settings to add one.
+          </p>
+        </div>
+      )}
 
       {/* New Chat Button */}
       <div className="p-3">
@@ -124,7 +154,7 @@ export function ChatSidebar({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">User</p>
-            <p className="text-xs text-muted-foreground">Free plan</p>
+            <p className="text-xs text-muted-foreground capitalize">{currentProvider}</p>
           </div>
         </div>
       </div>

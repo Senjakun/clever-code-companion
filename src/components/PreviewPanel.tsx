@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Monitor, Tablet, Smartphone, RefreshCw, ExternalLink, Code2, Eye, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodeEditor } from "@/components/CodeEditor";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "preview" | "code";
@@ -13,7 +14,7 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("preview");
+  const [viewMode, setViewMode] = useState<ViewMode>("code");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
 
   const deviceWidths: Record<DeviceMode, string> = {
@@ -92,7 +93,7 @@ export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
       </div>
 
       {/* Preview Content */}
-      <div className="flex-1 p-4 overflow-auto scrollbar-thin">
+      <div className="flex-1 p-4 overflow-hidden">
         <div
           className={cn(
             "mx-auto h-full transition-all duration-300",
@@ -114,27 +115,13 @@ export function PreviewPanel({ previewUrl, code }: PreviewPanelProps) {
                   </div>
                   <h2 className="text-xl font-semibold mb-2">Live Preview</h2>
                   <p className="text-muted-foreground max-w-sm">
-                    Start a conversation and I'll show your app preview here in real-time.
+                    Live preview coming soon. View the generated code in the Code tab.
                   </p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="h-full rounded-xl border border-border bg-[#1e1e1e] overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 bg-[#252526] border-b border-[#3c3c3c]">
-                <div className="flex gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-[#ff5f56]" />
-                  <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
-                  <span className="h-3 w-3 rounded-full bg-[#27ca40]" />
-                </div>
-                <span className="text-xs text-[#808080] ml-2">App.tsx</span>
-              </div>
-              <pre className="p-4 text-sm font-mono text-[#d4d4d4] overflow-auto h-[calc(100%-36px)] scrollbar-thin">
-                <code>
-                  {code || `// Your generated code will appear here\n\nimport React from 'react';\n\nexport default function App() {\n  return (\n    <div className="min-h-screen">\n      {/* Start building... */}\n    </div>\n  );\n}`}
-                </code>
-              </pre>
-            </div>
+            <CodeEditor code={code || ""} />
           )}
         </div>
       </div>
