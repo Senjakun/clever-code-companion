@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, Layout, BarChart3, ShoppingCart, Zap, Code, Rocket, ArrowRight } from 'lucide-react';
+import { Sparkles, Layout, BarChart3, Zap, Code, Rocket, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,13 +23,6 @@ const templates = [
     description: 'Admin dashboard with charts and data tables',
     icon: BarChart3,
     prompt: 'Create an admin dashboard with sidebar navigation, charts, and data tables',
-  },
-  {
-    id: 'ecommerce',
-    name: 'E-commerce',
-    description: 'Online store with product listings and cart',
-    icon: ShoppingCart,
-    prompt: 'Create an e-commerce storefront with product grid, filters, and shopping cart',
   },
 ];
 
