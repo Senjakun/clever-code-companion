@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Paperclip, Sparkles, Loader2 } from "lucide-react";
+import { Send, Paperclip, Sparkles, Loader2, Image, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,6 +18,13 @@ interface ChatPanelProps {
   onSendMessage: (content: string) => void;
   isLoading?: boolean;
 }
+
+const suggestions = [
+  "Buat landing page modern",
+  "Tambahkan form kontak",
+  "Buat navbar responsive",
+  "Tambahkan dark mode",
+];
 
 export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps) {
   const [input, setInput] = useState("");
@@ -43,22 +50,50 @@ export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps
     }
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    onSendMessage(suggestion);
+  };
+
   return (
-    <div className="flex h-full flex-col bg-background">
-      <ScrollArea className="flex-1 px-4 scrollbar-thin" ref={scrollRef}>
-        <div className="py-4 space-y-4">
+    <div className="flex h-full flex-col bg-gradient-to-b from-background to-background/95">
+      <ScrollArea className="flex-1 scrollbar-thin" ref={scrollRef}>
+        <div className="p-4 sm:p-6 space-y-4">
           {messages.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-[200px] text-center"
+              className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4"
             >
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 glow-primary">
-                <Sparkles className="h-6 w-6 text-primary" />
+              {/* Logo & Welcome */}
+              <div className="relative mb-6">
+                <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-xl shadow-primary/25">
+                  <Sparkles className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl -z-10" />
               </div>
-              <p className="text-sm text-muted-foreground max-w-[200px]">
-                Describe what you want to build and I'll generate the code
+              
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
+                Apa yang ingin Anda buat?
+              </h2>
+              <p className="text-sm text-muted-foreground mb-8 max-w-xs">
+                Jelaskan fitur atau halaman yang ingin Anda bangun, dan saya akan membuatkan kodenya.
               </p>
+
+              {/* Quick Suggestions */}
+              <div className="flex flex-wrap justify-center gap-2 max-w-sm">
+                {suggestions.map((suggestion, index) => (
+                  <motion.button
+                    key={suggestion}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 + index * 0.05 }}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-3 py-1.5 text-xs rounded-full bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-200 border border-border/50 hover:border-primary/30"
+                  >
+                    {suggestion}
+                  </motion.button>
+                ))}
+              </div>
             </motion.div>
           ) : (
             messages.map((message, index) => (
@@ -66,46 +101,48 @@ export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps
                 key={message.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: index * 0.02 }}
                 className={cn(
-                  "flex gap-2",
+                  "flex gap-3",
                   message.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
                 {message.role === "assistant" && (
-                  <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                    <Sparkles className="h-3 w-3 text-primary" />
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0 shadow-md shadow-primary/20">
+                    <Sparkles className="h-4 w-4 text-primary-foreground" />
                   </div>
                 )}
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                    "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
+                      ? "bg-primary text-primary-foreground rounded-tr-md"
+                      : "bg-card border border-border/50 text-foreground rounded-tl-md"
                   )}
                 >
-                  <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">
                     {message.content.split("===FILE:")[0].trim() || message.content}
                   </p>
                 </div>
               </motion.div>
             ))
           )}
+          
           {isLoading && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex gap-2 justify-start"
+              className="flex gap-3 justify-start"
             >
-              <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                <Loader2 className="h-3 w-3 text-primary animate-spin" />
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0 shadow-md shadow-primary/20">
+                <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
               </div>
-              <div className="bg-muted rounded-xl px-3 py-2">
-                <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="h-1.5 w-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="h-1.5 w-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              <div className="bg-card border border-border/50 rounded-2xl rounded-tl-md px-4 py-3">
+                <div className="flex gap-1.5 items-center">
+                  <span className="text-xs text-muted-foreground mr-2">Generating</span>
+                  <span className="h-2 w-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             </motion.div>
@@ -113,34 +150,45 @@ export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps
         </div>
       </ScrollArea>
 
-      <div className="p-3 border-t border-border">
-        <div className="relative rounded-xl border border-border bg-card shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+      {/* Input Area - Lovable Style */}
+      <div className="p-4 border-t border-border/50 bg-card/30 backdrop-blur-sm">
+        <div className="relative rounded-2xl border border-border/50 bg-card shadow-lg transition-all focus-within:border-primary/50 focus-within:shadow-primary/10">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Describe what you want to build..."
-            className="min-h-[60px] max-h-[120px] resize-none border-0 bg-transparent px-3 py-2.5 pr-20 focus-visible:ring-0 text-sm"
-            rows={2}
+            placeholder="Jelaskan apa yang ingin Anda buat..."
+            className="min-h-[80px] max-h-[160px] resize-none border-0 bg-transparent px-4 py-3 pr-24 focus-visible:ring-0 text-sm placeholder:text-muted-foreground/60"
+            rows={3}
           />
-          <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50"
             >
-              <Paperclip className="h-3.5 w-3.5" />
+              <Image className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            >
+              <Paperclip className="h-4 w-4" />
             </Button>
             <Button
               size="icon"
-              className="h-7 w-7 bg-primary hover:bg-primary/90"
+              className="h-9 w-9 rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/25"
               onClick={handleSubmit}
               disabled={!input.trim() || isLoading}
             >
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-4 w-4" />
             </Button>
           </div>
         </div>
+        <p className="text-[10px] text-center text-muted-foreground/60 mt-2">
+          QuinYukie AI dapat membuat kesalahan. Periksa hasil yang penting.
+        </p>
       </div>
     </div>
   );

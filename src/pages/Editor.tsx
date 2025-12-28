@@ -1,18 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Github, Menu, X, PanelLeftClose, PanelLeft } from "lucide-react";
-import { LeftSidebar } from "@/components/LeftSidebar";
+import { ArrowLeft, Sparkles, Menu, Share2, Settings, Code2, Eye } from "lucide-react";
 import { ChatPanel } from "@/components/ChatPanel";
-import { MonacoEditor } from "@/components/MonacoEditor";
-import { EditorTabs } from "@/components/EditorTabs";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DiffView } from "@/components/DiffView";
 import { UserMenu } from "@/components/UserMenu";
 import { CreditBlockModal } from "@/components/CreditBlockModal";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useFileSystem } from "@/hooks/useFileSystem";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -20,13 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { findFileById, FileChange, getAllFiles } from "@/lib/file-system";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-interface ChatSession {
-  id: string;
-  title: string;
-  timestamp: Date;
-  isActive?: boolean;
-}
 
 interface Message {
   id: string;
@@ -43,16 +32,11 @@ export default function Editor() {
   const fileSystem = useFileSystem();
   const isMobile = useIsMobile();
 
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    { id: "1", title: "New conversation", timestamp: new Date(), isActive: true },
-  ]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreditBlock, setShowCreditBlock] = useState(false);
-  const [showGithubSync, setShowGithubSync] = useState(false);
-  const [projectName, setProjectName] = useState("Project");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [projectName, setProjectName] = useState("Untitled");
+  const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -78,30 +62,6 @@ export default function Editor() {
     }
   };
 
-  const handleNewChat = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: "New conversation",
-      timestamp: new Date(),
-      isActive: true,
-    };
-    setSessions((prev) => [newSession, ...prev.map((s) => ({ ...s, isActive: false }))]);
-    setMessages([]);
-  };
-
-  const handleSelectChat = (id: string) => {
-    setSessions((prev) => prev.map((s) => ({ ...s, isActive: s.id === id })));
-  };
-
-  const handleDeleteChat = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const handleCreateFile = (parentId: string | null) => {
-    const name = prompt("Enter file name:");
-    if (name) fileSystem.createFile(parentId, name);
-  };
-
   const parseFileChanges = (response: string) => {
     const changes: { filePath: string; content: string }[] = [];
     const fileRegex = /===FILE:\s*(.+?)===\s*```\w*\n([\s\S]*?)```\s*===END_FILE===/g;
@@ -117,7 +77,6 @@ export default function Editor() {
     return changes;
   };
 
-  // Build file context for AI
   const buildFileContext = () => {
     const allFiles = getAllFiles(fileSystem.files);
     const fileList = allFiles.map(f => `- ${f.id}`).join("\n");
@@ -138,8 +97,9 @@ export default function Editor() {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
-    if (messages.length === 0) {
-      setSessions((prev) => prev.map((s) => s.isActive ? { ...s, title: content.slice(0, 30) } : s));
+    // Switch to preview on mobile when sending message
+    if (isMobile) {
+      setMobileView("preview");
     }
 
     const assistantId = (Date.now() + 1).toString();
@@ -148,7 +108,6 @@ export default function Editor() {
     let fullResponse = "";
 
     try {
-      // Include file context in the prompt
       const fileContext = buildFileContext();
       const fullPrompt = `${fileContext}\n\n## User Request:\n${content}`;
 
@@ -234,132 +193,106 @@ export default function Editor() {
     );
   }
 
-  const sidebarContent = (
-    <LeftSidebar
-      files={fileSystem.files}
-      activeFileId={fileSystem.activeFileId}
-      sessions={sessions}
-      onFileSelect={(id) => {
-        fileSystem.openFile(id);
-        if (isMobile) setMobileMenuOpen(false);
-      }}
-      onToggleFolder={fileSystem.toggleFolder}
-      onCreateFile={handleCreateFile}
-      onDeleteFile={fileSystem.removeFile}
-      onNewChat={handleNewChat}
-      onSelectChat={handleSelectChat}
-      onDeleteChat={handleDeleteChat}
-    />
-  );
-
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden dark bg-background">
-      {/* Top Bar */}
-      <header className="h-12 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-2 sm:px-3 shrink-0 z-10">
-        <div className="flex items-center gap-2">
-          {/* Mobile menu button */}
-          {isMobile ? (
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden">
-                  <Menu className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0">
-                {sidebarContent}
-              </SheetContent>
-            </Sheet>
-          ) : (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 hidden lg:flex"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            >
-              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </Button>
-          )}
-          
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/dashboard")}>
+      {/* Top Bar - Lovable Style */}
+      <header className="h-14 border-b border-border bg-card/80 backdrop-blur-xl flex items-center justify-between px-4 shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-9 w-9 rounded-xl hover:bg-muted" 
+            onClick={() => navigate("/dashboard")}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <span className="font-medium text-sm text-foreground truncate max-w-[120px] sm:max-w-[200px]">{projectName}</span>
+          
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold text-sm text-foreground">{projectName}</span>
+              <span className="text-xs text-muted-foreground hidden sm:block">QuinYukie AI</span>
+            </div>
+          </div>
         </div>
+
+        {/* Mobile View Toggle */}
+        {isMobile && (
+          <div className="flex items-center bg-muted/50 rounded-xl p-1">
+            <Button
+              variant={mobileView === "chat" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-3 rounded-lg text-xs"
+              onClick={() => setMobileView("chat")}
+            >
+              <Menu className="h-3.5 w-3.5 mr-1.5" />
+              Chat
+            </Button>
+            <Button
+              variant={mobileView === "preview" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-3 rounded-lg text-xs"
+              onClick={() => setMobileView("preview")}
+            >
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Preview
+            </Button>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-2 hidden sm:flex"
-            onClick={() => setShowGithubSync(true)}
+            className="h-9 gap-2 rounded-xl hidden sm:flex border-border/50"
           >
-            <Github className="h-4 w-4" />
-            Sync
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 sm:hidden"
-            onClick={() => setShowGithubSync(true)}
-          >
-            <Github className="h-4 w-4" />
+            <Share2 className="h-4 w-4" />
+            Share
           </Button>
           <UserMenu />
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content - Lovable Layout */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Desktop Sidebar */}
-        {!isMobile && (
-          <AnimatePresence mode="wait">
-            {!sidebarCollapsed && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "auto", opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="shrink-0 overflow-hidden"
-              >
-                {sidebarContent}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-
-        <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
-            <ChatPanel messages={messages} onSendMessage={handleSendMessage} isLoading={isLoading} />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel defaultSize={40} minSize={20}>
-            <div className="h-full flex flex-col bg-background min-w-0">
-              <EditorTabs
-                tabs={fileSystem.openTabs}
-                activeTab={fileSystem.activeFileId}
-                onSelectTab={fileSystem.openFile}
-                onCloseTab={fileSystem.closeTab}
+        {isMobile ? (
+          // Mobile: Show one panel at a time
+          <div className="flex-1 min-w-0">
+            {mobileView === "chat" ? (
+              <ChatPanel 
+                messages={messages} 
+                onSendMessage={handleSendMessage} 
+                isLoading={isLoading} 
               />
-              <div className="flex-1 min-h-0">
-                <MonacoEditor
-                  value={fileSystem.activeFile?.content || "// Select a file to edit"}
-                  language={fileSystem.activeFile?.language || "typescript"}
-                  onChange={(val) => fileSystem.activeFileId && fileSystem.updateFile(fileSystem.activeFileId, val)}
-                />
-              </div>
-            </div>
-          </ResizablePanel>
+            ) : (
+              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
+            )}
+          </div>
+        ) : (
+          // Desktop: Resizable panels - Chat left, Preview right (like Lovable)
+          <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
+            {/* Chat Panel - Left side */}
+            <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+              <ChatPanel 
+                messages={messages} 
+                onSendMessage={handleSendMessage} 
+                isLoading={isLoading} 
+              />
+            </ResizablePanel>
 
-          <ResizableHandle withHandle />
+            <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
 
-          <ResizablePanel defaultSize={40} minSize={20}>
-            <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            {/* Preview Panel - Right side (larger, main focus) */}
+            <ResizablePanel defaultSize={65} minSize={40}>
+              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
 
+      {/* Diff View for pending changes */}
       <AnimatePresence>
         {fileSystem.pendingChanges.length > 0 && (
           <DiffView
@@ -371,30 +304,6 @@ export default function Editor() {
       </AnimatePresence>
 
       <CreditBlockModal open={showCreditBlock} onOpenChange={setShowCreditBlock} />
-
-      {/* GitHub Sync Dialog */}
-      <Dialog open={showGithubSync} onOpenChange={setShowGithubSync}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Github className="h-5 w-5" />
-              GitHub Sync
-            </DialogTitle>
-            <DialogDescription>
-              Connect to GitHub to push your project code.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <Button className="w-full gap-2">
-              <Github className="h-4 w-4" />
-              Connect GitHub Account
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              You'll be able to create repositories and push updates directly from the editor.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
