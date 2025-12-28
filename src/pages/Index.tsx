@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { AIProvider } from "@/components/SettingsModal";
+import { generateCode, extractCodeFromResponse } from "@/lib/ai-service";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatSession {
   id: string;
@@ -18,15 +21,36 @@ interface Message {
   timestamp: Date;
 }
 
+interface APIKeys {
+  openai: string;
+  gemini: string;
+}
+
 const Index = () => {
+  const { toast } = useToast();
+  
   const [sessions, setSessions] = useState<ChatSession[]>([
-    { id: "1", title: "Building a dashboard", timestamp: new Date(), isActive: true },
-    { id: "2", title: "API integration help", timestamp: new Date(Date.now() - 86400000) },
-    { id: "3", title: "React component design", timestamp: new Date(Date.now() - 172800000) },
+    { id: "1", title: "New conversation", timestamp: new Date(), isActive: true },
   ]);
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string>("");
+  
+  // AI Settings
+  const [provider, setProvider] = useState<AIProvider>(() => {
+    return (localStorage.getItem("ai_provider") as AIProvider) || "openai";
+  });
+  
+  const [apiKeys, setApiKeys] = useState<APIKeys>(() => {
+    const saved = localStorage.getItem("api_keys");
+    return saved ? JSON.parse(saved) : { openai: "", gemini: "" };
+  });
+
+  const handleSettingsChange = (newProvider: AIProvider, newKeys: APIKeys) => {
+    setProvider(newProvider);
+    setApiKeys(newKeys);
+  };
 
   const handleNewChat = () => {
     const newSession: ChatSession = {
@@ -39,6 +63,7 @@ const Index = () => {
       [newSession, ...prev.map((s) => ({ ...s, isActive: false }))]
     );
     setMessages([]);
+    setGeneratedCode("");
   };
 
   const handleSelectChat = (id: string) => {
@@ -46,6 +71,7 @@ const Index = () => {
       prev.map((s) => ({ ...s, isActive: s.id === id }))
     );
     setMessages([]);
+    setGeneratedCode("");
   };
 
   const handleDeleteChat = (id: string) => {
@@ -53,6 +79,17 @@ const Index = () => {
   };
 
   const handleSendMessage = async (content: string) => {
+    const currentApiKey = provider === "openai" ? apiKeys.openai : apiKeys.gemini;
+    
+    if (!currentApiKey) {
+      toast({
+        title: "API Key Required",
+        description: `Please add your ${provider === "openai" ? "OpenAI" : "Gemini"} API key in settings.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -63,6 +100,7 @@ const Index = () => {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Update session title
     if (messages.length === 0) {
       setSessions((prev) =>
         prev.map((s) =>
@@ -71,16 +109,52 @@ const Index = () => {
       );
     }
 
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "I'm here to help you build amazing web applications! This is a demo response. In a real implementation, this would be connected to an AI backend.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+    // Create assistant message placeholder
+    const assistantMessageId = (Date.now() + 1).toString();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantMessageId, role: "assistant", content: "", timestamp: new Date() },
+    ]);
+
+    let fullResponse = "";
+
+    try {
+      await generateCode(
+        provider,
+        currentApiKey,
+        [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
+        (chunk) => {
+          fullResponse += chunk;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMessageId ? { ...m, content: fullResponse } : m
+            )
+          );
+          
+          // Extract and update code
+          const code = extractCodeFromResponse(fullResponse);
+          if (code) {
+            setGeneratedCode(code);
+          }
+        }
+      );
+    } catch (error) {
+      console.error("AI error:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate response",
+        variant: "destructive",
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMessageId
+            ? { ...m, content: "Sorry, I encountered an error. Please check your API key and try again." }
+            : m
+        )
+      );
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -90,6 +164,9 @@ const Index = () => {
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
+        currentProvider={provider}
+        currentKeys={apiKeys}
+        onSettingsChange={handleSettingsChange}
       />
 
       <ResizablePanelGroup direction="horizontal" className="flex-1">
@@ -104,7 +181,7 @@ const Index = () => {
         <ResizableHandle withHandle className="bg-border hover:bg-primary/20 transition-colors" />
         
         <ResizablePanel defaultSize={60} minSize={30}>
-          <PreviewPanel />
+          <PreviewPanel code={generatedCode} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
