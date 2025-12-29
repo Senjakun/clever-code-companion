@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Users, Key, Save, Eye, EyeOff, Loader2, Mail, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Users, Key, Save, Eye, EyeOff, Loader2, Mail, Send, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import EmailTemplates from '@/components/EmailTemplates';
 
 interface UserProfile {
   id: string;
@@ -295,6 +296,10 @@ export default function Admin() {
             <TabsTrigger value="email" className="gap-2">
               <Mail className="h-4 w-4" />
               Email/SMTP
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Templates
             </TabsTrigger>
           </TabsList>
 
@@ -641,6 +646,10 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </motion.div>
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <EmailTemplates />
           </TabsContent>
         </Tabs>
       </main>
