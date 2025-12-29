@@ -23,8 +23,8 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   credits: number;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
   refetchProfile: () => void;
 }

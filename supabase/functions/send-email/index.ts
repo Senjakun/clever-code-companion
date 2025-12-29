@@ -12,6 +12,8 @@ interface EmailRequest {
   subject: string;
   html?: string;
   text?: string;
+  template?: string;
+  variables?: Record<string, string>;
 }
 
 interface SmtpConfig {
@@ -23,6 +25,22 @@ interface SmtpConfig {
   from_email: string;
   from_name: string;
   encryption: 'none' | 'tls' | 'starttls';
+}
+
+interface EmailTemplate {
+  name: string;
+  subject: string;
+  html_content: string;
+  text_content: string;
+}
+
+function replaceVariables(content: string, variables: Record<string, string>): string {
+  let result = content;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, 'g');
+    result = result.replace(regex, value);
+  }
+  return result;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -55,9 +73,10 @@ const handler = async (req: Request): Promise<Response> => {
     const smtpConfig: SmtpConfig = JSON.parse(smtpData.key_value);
 
     if (!smtpConfig.enabled) {
+      console.log("SMTP is disabled, skipping email");
       return new Response(
-        JSON.stringify({ error: "SMTP is not enabled" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "SMTP is not enabled", skipped: true }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -69,16 +88,48 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, text }: EmailRequest = await req.json();
+    const { to, subject, html, text, template, variables = {} }: EmailRequest = await req.json();
 
-    if (!to || !subject) {
+    if (!to) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: to, subject" }),
+        JSON.stringify({ error: "Missing required field: to" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log(`Sending email to: ${to}, subject: ${subject}`);
+    let finalSubject = subject;
+    let finalHtml = html;
+    let finalText = text;
+
+    // If template is specified, fetch it from database
+    if (template) {
+      const { data: templateData, error: templateError } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("name", template)
+        .single();
+
+      if (templateError || !templateData) {
+        console.error("Template error:", templateError);
+        return new Response(
+          JSON.stringify({ error: `Email template '${template}' not found` }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      finalSubject = replaceVariables(templateData.subject, variables);
+      finalHtml = replaceVariables(templateData.html_content, variables);
+      finalText = templateData.text_content ? replaceVariables(templateData.text_content, variables) : undefined;
+    }
+
+    if (!finalSubject) {
+      return new Response(
+        JSON.stringify({ error: "Missing required field: subject (or template)" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Sending email to: ${to}, subject: ${finalSubject}`);
     console.log(`SMTP Host: ${smtpConfig.host}:${smtpConfig.port}`);
 
     // Create SMTP client
@@ -103,9 +154,9 @@ const handler = async (req: Request): Promise<Response> => {
         ? `${smtpConfig.from_name} <${smtpConfig.from_email}>`
         : smtpConfig.from_email,
       to: recipients,
-      subject: subject,
-      content: text || "",
-      html: html || undefined,
+      subject: finalSubject,
+      content: finalText || "",
+      html: finalHtml || undefined,
     });
 
     await client.close();

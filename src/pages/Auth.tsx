@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -56,7 +57,7 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password);
+        const { error, data } = await signUp(email, password);
         if (error) {
           if (error.message.includes('already registered')) {
             toast({ title: 'Akun sudah ada', description: 'Email ini sudah terdaftar. Silakan masuk.', variant: 'destructive' });
@@ -65,11 +66,20 @@ export default function Auth() {
           }
         } else {
           toast({ title: 'Selamat datang!', description: 'Akun berhasil dibuat. Anda mendapat $10 kredit gratis!' });
+          // Send welcome email notification (non-blocking)
+          supabase.functions.invoke('auth-notification', {
+            body: { type: 'signup', user_email: email, user_id: data.user?.id }
+          }).catch(console.error);
         }
       } else {
-        const { error } = await signIn(email, password);
+        const { error, data } = await signIn(email, password);
         if (error) {
           toast({ title: 'Gagal masuk', description: 'Email atau password salah', variant: 'destructive' });
+        } else {
+          // Send login notification (non-blocking)
+          supabase.functions.invoke('auth-notification', {
+            body: { type: 'login', user_email: email, user_id: data.user?.id }
+          }).catch(console.error);
         }
       }
     } catch (err) {
