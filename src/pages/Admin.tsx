@@ -214,15 +214,46 @@ export default function Admin() {
       return;
     }
 
+    // Save SMTP config first
+    await handleSaveSmtp();
+
     setTestingSmtp(true);
 
-    // In a real implementation, this would call an edge function to send a test email
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: testEmail,
+          subject: 'Test Email - SMTP Configuration',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+              <h1 style="color: #333;">SMTP Test Successful! ✅</h1>
+              <p>Congratulations! Your SMTP configuration is working correctly.</p>
+              <p><strong>SMTP Host:</strong> ${smtp.host}</p>
+              <p><strong>Port:</strong> ${smtp.port}</p>
+              <p><strong>Encryption:</strong> ${smtp.encryption.toUpperCase()}</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="color: #666; font-size: 12px;">This is a test email sent from your admin panel.</p>
+            </div>
+          `,
+          text: `SMTP Test Successful! Your SMTP configuration is working correctly. Host: ${smtp.host}, Port: ${smtp.port}`,
+        },
+      });
 
-    toast({ 
-      title: 'Test Email Sent', 
-      description: `A test email has been sent to ${testEmail}`,
-    });
+      if (error) throw error;
+
+      toast({ 
+        title: 'Test Email Sent', 
+        description: `A test email has been sent to ${testEmail}`,
+      });
+    } catch (error: any) {
+      console.error('Test email error:', error);
+      toast({ 
+        title: 'Failed to send test email', 
+        description: error.message || 'Check your SMTP configuration',
+        variant: 'destructive',
+      });
+    }
+
     setTestingSmtp(false);
   };
 
