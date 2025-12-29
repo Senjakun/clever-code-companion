@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.auth-notification]
 verify_jwt = false
+
+[functions.github-sync]
+verify_jwt = false

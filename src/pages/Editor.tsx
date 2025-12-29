@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Menu, Share2, Settings, Code2, Eye } from "lucide-react";
+import { ArrowLeft, Sparkles, Menu, Share2, Eye } from "lucide-react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DiffView } from "@/components/DiffView";
 import { UserMenu } from "@/components/UserMenu";
 import { CreditBlockModal } from "@/components/CreditBlockModal";
+import { GitHubIntegration } from "@/components/GitHubIntegration";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -243,6 +244,10 @@ export default function Editor() {
         )}
 
         <div className="flex items-center gap-2">
+          <GitHubIntegration 
+            projectId={projectId || ""} 
+            files={fileSystem.files} 
+          />
           <Button
             variant="outline"
             size="sm"
