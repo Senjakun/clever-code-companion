@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, Layout, BarChart3, Zap, Code, Rocket, ArrowRight, Star } from 'lucide-react';
+import { Sparkles, Layout, BarChart3, Zap, Code, Rocket, ArrowRight, Star, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,9 +48,38 @@ export default function Landing() {
   const [prompt, setPrompt] = useState('');
   const [creating, setCreating] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, credits, loading: authLoading } = useAuthContext();
+
+  // Check if initial setup is needed
+  useEffect(() => {
+    const checkSetup = async () => {
+      const { data } = await supabase
+        .from('api_keys')
+        .select('key_name')
+        .eq('key_name', 'setup_completed')
+        .maybeSingle();
+
+      if (!data) {
+        // No setup completed, redirect to setup
+        navigate('/setup');
+        return;
+      }
+      setCheckingSetup(false);
+    };
+
+    checkSetup();
+  }, [navigate]);
+
+  if (checkingSetup) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center dark">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleCreateProject = async (projectPrompt: string) => {
     if (!user) {

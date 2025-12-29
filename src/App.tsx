@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import Admin from "./pages/Admin";
+import Setup from "./pages/Setup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/setup" element={<Setup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/editor/:projectId" element={<Editor />} />
             <Route path="/admin" element={<Admin />} />
