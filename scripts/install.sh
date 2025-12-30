@@ -2,10 +2,15 @@
 
 # ===================================
 # Auto Install & Deploy Script
-# Clever Code Companion
+# Pendamping Kode Cerdas
+# Repository: Senjakun/pendamping-kode-cerdas
 # ===================================
 
 set -e
+
+# Configuration
+REPO_URL="https://github.com/Senjakun/pendamping-kode-cerdas.git"
+APP_DIR="/var/www/pendamping-kode-cerdas"
 
 echo "🚀 Starting auto installation..."
 
@@ -21,23 +26,33 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo -e "${YELLOW}[1/6]${NC} Updating system..."
+echo -e "${YELLOW}[1/7]${NC} Updating system..."
 apt update && apt upgrade -y
 
-echo -e "${YELLOW}[2/6]${NC} Installing Node.js 20..."
+echo -e "${YELLOW}[2/7]${NC} Installing Node.js 20..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
+apt install -y nodejs git
 
-echo -e "${YELLOW}[3/6]${NC} Installing Nginx..."
+echo -e "${YELLOW}[3/7]${NC} Installing Nginx..."
 apt install -y nginx
 
-echo -e "${YELLOW}[4/6]${NC} Installing dependencies..."
+echo -e "${YELLOW}[4/7]${NC} Cloning repository..."
+if [ -d "$APP_DIR" ]; then
+  echo "Directory exists, pulling latest..."
+  cd "$APP_DIR"
+  git pull origin main
+else
+  git clone "$REPO_URL" "$APP_DIR"
+  cd "$APP_DIR"
+fi
+
+echo -e "${YELLOW}[5/7]${NC} Installing dependencies..."
 npm install
 
-echo -e "${YELLOW}[5/6]${NC} Building project..."
+echo -e "${YELLOW}[6/7]${NC} Building project..."
 npm run build
 
-echo -e "${YELLOW}[6/6]${NC} Deploying to Nginx..."
+echo -e "${YELLOW}[7/7]${NC} Deploying to Nginx..."
 rm -rf /var/www/html/*
 cp -r dist/* /var/www/html/
 systemctl restart nginx
@@ -50,5 +65,6 @@ echo -e "${GREEN}✅ Installation complete!${NC}"
 echo -e "${GREEN}🌐 Your app is live at: http://${SERVER_IP}${NC}"
 echo ""
 echo -e "${YELLOW}Optional next steps:${NC}"
-echo "  - Setup SSL: sudo certbot --nginx -d yourdomain.com"
+echo "  - Setup SSL: sudo bash $APP_DIR/scripts/ssl-setup.sh yourdomain.com"
 echo "  - Setup firewall: sudo ufw allow 'Nginx Full'"
+echo "  - Update later: sudo bash $APP_DIR/scripts/update.sh"
