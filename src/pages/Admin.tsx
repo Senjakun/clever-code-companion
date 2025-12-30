@@ -49,20 +49,16 @@ export default function Admin() {
   const [savingCredits, setSavingCredits] = useState<{ [key: string]: boolean }>({});
   
   const [geminiKey, setGeminiKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
   const [deepseekKey, setDeepseekKey] = useState('');
   const [groqKey, setGroqKey] = useState('');
   const [showGemini, setShowGemini] = useState(false);
-  const [showOpenai, setShowOpenai] = useState(false);
   const [showDeepseek, setShowDeepseek] = useState(false);
   const [showGroq, setShowGroq] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
-  const [testingOpenai, setTestingOpenai] = useState(false);
   const [testingDeepseek, setTestingDeepseek] = useState(false);
   const [testingGroq, setTestingGroq] = useState(false);
   const [geminiStatus, setGeminiStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [deepseekStatus, setDeepseekStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [groqStatus, setGroqStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -130,7 +126,6 @@ export default function Admin() {
       setApiKeys(keysData);
       keysData.forEach((k) => {
         if (k.key_name === 'gemini') setGeminiKey(k.key_value);
-        if (k.key_name === 'openai') setOpenaiKey(k.key_value);
         if (k.key_name === 'deepseek') setDeepseekKey(k.key_value);
         if (k.key_name === 'groq') setGroqKey(k.key_value);
         if (k.key_name === 'smtp_config') {
@@ -176,7 +171,6 @@ export default function Admin() {
 
     const keys = [
       { key_name: 'gemini', key_value: geminiKey },
-      { key_name: 'openai', key_value: openaiKey },
       { key_name: 'deepseek', key_value: deepseekKey },
       { key_name: 'groq', key_value: groqKey },
     ];
@@ -203,10 +197,9 @@ export default function Admin() {
     fetchData();
   };
 
-  const handleTestApiKey = async (provider: 'gemini' | 'openai' | 'deepseek' | 'groq') => {
+  const handleTestApiKey = async (provider: 'gemini' | 'deepseek' | 'groq') => {
     const apiKeyMap: Record<string, string> = {
       gemini: geminiKey,
-      openai: openaiKey,
       deepseek: deepseekKey,
       groq: groqKey,
     };
@@ -214,7 +207,6 @@ export default function Admin() {
     
     const providerNames: Record<string, string> = {
       gemini: 'Gemini',
-      openai: 'OpenAI',
       deepseek: 'DeepSeek',
       groq: 'Groq',
     };
@@ -230,7 +222,6 @@ export default function Admin() {
 
     // Set testing state
     if (provider === 'gemini') { setTestingGemini(true); setGeminiStatus('idle'); }
-    else if (provider === 'openai') { setTestingOpenai(true); setOpenaiStatus('idle'); }
     else if (provider === 'deepseek') { setTestingDeepseek(true); setDeepseekStatus('idle'); }
     else if (provider === 'groq') { setTestingGroq(true); setGroqStatus('idle'); }
 
@@ -243,7 +234,6 @@ export default function Admin() {
 
       const setStatus = (status: 'success' | 'error') => {
         if (provider === 'gemini') setGeminiStatus(status);
-        else if (provider === 'openai') setOpenaiStatus(status);
         else if (provider === 'deepseek') setDeepseekStatus(status);
         else if (provider === 'groq') setGroqStatus(status);
       };
@@ -265,7 +255,6 @@ export default function Admin() {
     } catch (error: any) {
       console.error('Test API key error:', error);
       if (provider === 'gemini') setGeminiStatus('error');
-      else if (provider === 'openai') setOpenaiStatus('error');
       else if (provider === 'deepseek') setDeepseekStatus('error');
       else if (provider === 'groq') setGroqStatus('error');
       toast({ 
@@ -275,7 +264,6 @@ export default function Admin() {
       });
     } finally {
       if (provider === 'gemini') setTestingGemini(false);
-      else if (provider === 'openai') setTestingOpenai(false);
       else if (provider === 'deepseek') setTestingDeepseek(false);
       else if (provider === 'groq') setTestingGroq(false);
     }
@@ -520,65 +508,6 @@ export default function Admin() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Get your API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a>
-                    </p>
-                  </div>
-
-                  {/* OpenAI API Key */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>OpenAI API Key</Label>
-                      {openaiStatus === 'success' && (
-                        <div className="flex items-center gap-1 text-green-500 text-xs">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>Connected</span>
-                        </div>
-                      )}
-                      {openaiStatus === 'error' && (
-                        <div className="flex items-center gap-1 text-red-500 text-xs">
-                          <AlertCircle className="h-3 w-3" />
-                          <span>Failed</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          type={showOpenai ? 'text' : 'password'}
-                          placeholder="sk-..."
-                          value={openaiKey}
-                          onChange={(e) => {
-                            setOpenaiKey(e.target.value);
-                            setOpenaiStatus('idle');
-                          }}
-                          className="pr-10"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full w-10"
-                          onClick={() => setShowOpenai(!showOpenai)}
-                        >
-                          {showOpenai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="default"
-                        onClick={() => handleTestApiKey('openai')}
-                        disabled={testingOpenai || !openaiKey.trim()}
-                        className="gap-2 shrink-0"
-                      >
-                        {testingOpenai ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Zap className="h-4 w-4" />
-                        )}
-                        Test
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a>
                     </p>
                   </div>
 
