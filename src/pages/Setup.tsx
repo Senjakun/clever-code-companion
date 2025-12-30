@@ -20,7 +20,8 @@ interface SetupData {
   confirmPassword: string;
   siteDomain: string;
   geminiKey: string;
-  openaiKey: string;
+  deepseekKey: string;
+  groqKey: string;
 }
 
 export default function Setup() {
@@ -29,7 +30,8 @@ export default function Setup() {
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showGemini, setShowGemini] = useState(false);
-  const [showOpenai, setShowOpenai] = useState(false);
+  const [showDeepseek, setShowDeepseek] = useState(false);
+  const [showGroq, setShowGroq] = useState(false);
   
   const [data, setData] = useState<SetupData>({
     adminEmail: '',
@@ -37,7 +39,8 @@ export default function Setup() {
     confirmPassword: '',
     siteDomain: typeof window !== 'undefined' ? window.location.hostname : '',
     geminiKey: '',
-    openaiKey: '',
+    deepseekKey: '',
+    groqKey: '',
   });
 
   const navigate = useNavigate();
@@ -142,8 +145,11 @@ export default function Setup() {
       if (data.geminiKey.trim()) {
         keysToInsert.push({ key_name: 'gemini', key_value: data.geminiKey });
       }
-      if (data.openaiKey.trim()) {
-        keysToInsert.push({ key_name: 'openai', key_value: data.openaiKey });
+      if (data.deepseekKey.trim()) {
+        keysToInsert.push({ key_name: 'deepseek', key_value: data.deepseekKey });
+      }
+      if (data.groqKey.trim()) {
+        keysToInsert.push({ key_name: 'groq', key_value: data.groqKey });
       }
 
       await supabase.from('api_keys').insert(keysToInsert);
@@ -378,13 +384,13 @@ export default function Setup() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>OpenAI API Key</Label>
+                      <Label>DeepSeek API Key</Label>
                       <div className="relative">
                         <Input
-                          type={showOpenai ? 'text' : 'password'}
-                          placeholder="sk-... (optional)"
-                          value={data.openaiKey}
-                          onChange={(e) => setData({ ...data, openaiKey: e.target.value })}
+                          type={showDeepseek ? 'text' : 'password'}
+                          placeholder="sk-... (opsional)"
+                          value={data.deepseekKey}
+                          onChange={(e) => setData({ ...data, deepseekKey: e.target.value })}
                           className="pr-10"
                         />
                         <Button
@@ -392,9 +398,30 @@ export default function Setup() {
                           variant="ghost"
                           size="icon"
                           className="absolute right-0 top-0 h-full w-10"
-                          onClick={() => setShowOpenai(!showOpenai)}
+                          onClick={() => setShowDeepseek(!showDeepseek)}
                         >
-                          {showOpenai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {showDeepseek ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Groq API Key</Label>
+                      <div className="relative">
+                        <Input
+                          type={showGroq ? 'text' : 'password'}
+                          placeholder="gsk_... (opsional)"
+                          value={data.groqKey}
+                          onChange={(e) => setData({ ...data, groqKey: e.target.value })}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full w-10"
+                          onClick={() => setShowGroq(!showGroq)}
+                        >
+                          {showGroq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
                     </div>
@@ -402,9 +429,9 @@ export default function Setup() {
                       <div className="flex items-start gap-3">
                         <Sparkles className="h-5 w-5 text-primary mt-0.5" />
                         <div className="space-y-1 text-sm">
-                          <p className="font-medium text-primary">Pro Tip</p>
+                          <p className="font-medium text-primary">Tips Profesional</p>
                           <p className="text-muted-foreground">
-                            API keys can also be configured later via the Admin Panel
+                            Kunci API juga dapat dikonfigurasi nanti melalui Panel Admin.
                           </p>
                         </div>
                       </div>
