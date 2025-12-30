@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { IterativeRefinement } from "./IterativeRefinement";
 
 interface Message {
   id: string;
@@ -16,7 +17,9 @@ interface Message {
 interface ChatPanelProps {
   messages: Message[];
   onSendMessage: (content: string) => void;
+  onRefine?: (feedback: string, type: "fix" | "improve" | "custom") => void;
   isLoading?: boolean;
+  hasFileChanges?: boolean;
 }
 
 const suggestions = [
@@ -26,7 +29,7 @@ const suggestions = [
   "Tambahkan dark mode",
 ];
 
-export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps) {
+export function ChatPanel({ messages, onSendMessage, onRefine, isLoading, hasFileChanges }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -146,6 +149,16 @@ export function ChatPanel({ messages, onSendMessage, isLoading }: ChatPanelProps
                 </div>
               </div>
             </motion.div>
+          )}
+          
+          {/* Iterative Refinement Panel */}
+          {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && onRefine && (
+            <IterativeRefinement
+              lastResponse={messages[messages.length - 1]?.content || ""}
+              onRefine={onRefine}
+              isLoading={isLoading}
+              hasFileChanges={hasFileChanges}
+            />
           )}
         </div>
       </ScrollArea>
