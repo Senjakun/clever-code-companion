@@ -9,8 +9,8 @@
 set -e
 
 # Configuration
-REPO_URL="https://github.com/Senjakun/pendamping-kode-cerdas.git"
-APP_DIR="/var/www/pendamping-kode-cerdas"
+REPO_URL="https://github.com/Senjakun/clever-code-companion.git"
+APP_DIR="/var/www/clever-code-companion"
 
 echo "🚀 Starting auto installation..."
 
