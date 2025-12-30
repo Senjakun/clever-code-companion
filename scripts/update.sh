@@ -2,14 +2,14 @@
 
 # ===================================
 # Auto Update Script (Git Pull & Rebuild)
-# Pendamping Kode Cerdas
-# Repository: Senjakun/pendamping-kode-cerdas
+# Clever Code Companion
+# Repository: Senjakun/clever-code-companion
 # ===================================
 
 set -e
 
 # Configuration
-APP_DIR="/var/www/pendamping-kode-cerdas"
+APP_DIR="/var/www/clever-code-companion"
 
 # Colors for output
 RED='\033[0;31m'
