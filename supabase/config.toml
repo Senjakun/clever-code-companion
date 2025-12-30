@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.test-api-key]
 verify_jwt = false
+
+[functions.dual-ai-generate]
+verify_jwt = false

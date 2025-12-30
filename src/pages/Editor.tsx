@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Menu, Share2, Eye, FolderTree, Code2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Menu, Share2, Eye, FolderTree, Code2, Terminal, Zap } from "lucide-react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DiffView } from "@/components/DiffView";
@@ -12,10 +12,15 @@ import { FileExplorerPanel } from "@/components/FileExplorerPanel";
 import { CodeEditorPanel } from "@/components/CodeEditorPanel";
 import { ModelSelector } from "@/components/ModelSelector";
 import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
+import { ConsolePanel } from "@/components/ConsolePanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFileSystem } from "@/hooks/useFileSystem";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
+import { useConsole } from "@/hooks/useConsole";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +44,7 @@ export default function Editor() {
   const { user, credits, loading: authLoading } = useAuthContext();
   const fileSystem = useFileSystem();
   const isMobile = useIsMobile();
+  const console = useConsole();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,9 +53,14 @@ export default function Editor() {
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
   const [selectedModel, setSelectedModel] = useState(getDefaultModel().id);
   
+  // Dual AI Mode
+  const [dualAIEnabled, setDualAIEnabled] = useState(true);
+  
   // Panel visibility states
   const [showFileExplorer, setShowFileExplorer] = useState(false);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [showConsole, setShowConsole] = useState(false);
+  const [consoleExpanded, setConsoleExpanded] = useState(false);
 
   // Version history
   const versionHistory = useVersionHistory(fileSystem.files);
@@ -112,6 +123,10 @@ export default function Editor() {
     const userMessage: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
+    setShowConsole(true);
+
+    // Log to console
+    console.info(`User request: "${content.slice(0, 50)}..."`, "Chat");
 
     // Switch to preview on mobile when sending message
     if (isMobile) {
@@ -127,7 +142,19 @@ export default function Editor() {
       const fileContext = buildFileContext();
       const fullPrompt = `${fileContext}\n\n## User Request:\n${content}`;
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+      // Choose endpoint based on dual AI mode
+      const endpoint = dualAIEnabled 
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dual-ai-generate`
+        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+      console.info(
+        dualAIEnabled 
+          ? "Dual AI Pipeline: GPT-5 (Architect) → Gemini 2.5 Pro (Reviewer)"
+          : `Single AI Mode: ${selectedModel}`,
+        "AI"
+      );
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,12 +162,14 @@ export default function Editor() {
         },
         body: JSON.stringify({
           messages: [{ role: "user", content: fullPrompt }],
-          provider: "gemini",
+          mode: dualAIEnabled ? "dual" : "architect-only",
+          provider: "lovable",
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error(`API Error: ${errorData.error}`, "AI");
         throw new Error(errorData.error || "Failed to generate code");
       }
 
@@ -182,20 +211,32 @@ export default function Editor() {
         }
       }
 
+      // Parse file changes from the final response (from reviewer in dual mode)
       const changes = parseFileChanges(fullResponse);
-      changes.forEach((change) => {
-        const existingFile = findFileById(fileSystem.files, change.filePath);
-        const fileChange: FileChange = {
-          fileId: change.filePath,
-          fileName: change.filePath.split("/").pop() || change.filePath,
-          oldContent: existingFile?.content || "",
-          newContent: change.content,
-          type: existingFile ? "modify" : "create",
-        };
-        fileSystem.addPendingChange(fileChange);
-      });
+      
+      if (changes.length > 0) {
+        console.success(`Detected ${changes.length} file change(s)`, "Parser");
+        changes.forEach((change) => {
+          const existingFile = findFileById(fileSystem.files, change.filePath);
+          const fileChange: FileChange = {
+            fileId: change.filePath,
+            fileName: change.filePath.split("/").pop() || change.filePath,
+            oldContent: existingFile?.content || "",
+            newContent: change.content,
+            type: existingFile ? "modify" : "create",
+          };
+          fileSystem.addPendingChange(fileChange);
+          console.log(`${existingFile ? "Modified" : "Created"}: ${change.filePath}`, "Files");
+        });
+      } else {
+        console.warn("No file changes detected in response", "Parser");
+      }
+
+      console.success("AI generation complete", "AI");
     } catch (error) {
-      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to generate", variant: "destructive" });
+      const errorMsg = error instanceof Error ? error.message : "Failed to generate";
+      console.error(errorMsg, "AI");
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -210,6 +251,7 @@ export default function Editor() {
     const fileName = prompt("Enter file name:");
     if (fileName) {
       fileSystem.createFile(parentId, fileName);
+      console.log(`File created: ${fileName}`, "Files");
     }
   };
 
@@ -220,6 +262,9 @@ export default function Editor() {
       </div>
     );
   }
+
+  const errorCount = console.logs.filter(l => l.level === "error").length;
+  const warnCount = console.logs.filter(l => l.level === "warn").length;
 
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden dark bg-background">
@@ -266,6 +311,49 @@ export default function Editor() {
             <Code2 className="h-3.5 w-3.5" />
             Code
           </Button>
+          <Button
+            variant={showConsole ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 px-3 rounded-lg text-xs gap-1.5"
+            onClick={() => setShowConsole(!showConsole)}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            Console
+            {(errorCount > 0 || warnCount > 0) && (
+              <Badge 
+                variant="destructive" 
+                className={cn(
+                  "h-4 min-w-4 px-1 text-[10px]",
+                  errorCount > 0 ? "bg-red-500" : "bg-yellow-500"
+                )}
+              >
+                {errorCount || warnCount}
+              </Badge>
+            )}
+          </Button>
+          
+          {/* Dual AI Toggle */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-border/50">
+                  <Zap className={cn("h-3.5 w-3.5", dualAIEnabled ? "text-primary" : "text-muted-foreground")} />
+                  <Switch
+                    checked={dualAIEnabled}
+                    onCheckedChange={setDualAIEnabled}
+                    className="scale-75"
+                  />
+                  <span className="text-xs text-muted-foreground">Dual AI</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="text-xs">
+                  <strong>Dual AI Pipeline:</strong><br />
+                  GPT-5 generates code → Gemini 2.5 Pro reviews & improves
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {/* Mobile View Toggle */}
@@ -310,89 +398,104 @@ export default function Editor() {
       </header>
 
       {/* Main Content - Lovable Layout */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {isMobile ? (
-          // Mobile: Show one panel at a time
-          <div className="flex-1 min-w-0">
-            {mobileView === "chat" ? (
-              <ChatPanel 
-                messages={messages} 
-                onSendMessage={handleSendMessage} 
-                isLoading={isLoading} 
-              />
-            ) : (
-              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
-            )}
-          </div>
-        ) : (
-          // Desktop: Resizable panels with optional file explorer and code editor
-          <div className="flex-1 flex min-w-0">
-            {/* File Explorer Panel */}
-            <AnimatePresence>
-              {showFileExplorer && (
-                <motion.div
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 240, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="shrink-0 overflow-hidden"
-                >
-                  <FileExplorerPanel
-                    files={fileSystem.files}
-                    activeFileId={fileSystem.activeFileId}
-                    onFileSelect={handleFileSelect}
-                    onToggleFolder={fileSystem.toggleFolder}
-                    onCreateFile={handleCreateFile}
-                    onDeleteFile={fileSystem.removeFile}
-                    onClose={() => setShowFileExplorer(false)}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Code Editor Panel */}
-            <AnimatePresence>
-              {showCodeEditor && (
-                <motion.div
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 400, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="shrink-0 overflow-hidden"
-                >
-                  <CodeEditorPanel
-                    file={fileSystem.activeFile}
-                    openTabs={fileSystem.openTabs}
-                    activeFileId={fileSystem.activeFileId}
-                    files={fileSystem.files}
-                    onTabSelect={fileSystem.openFile}
-                    onTabClose={fileSystem.closeTab}
-                    onContentChange={fileSystem.updateFile}
-                    onClose={() => setShowCodeEditor(false)}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
-              {/* Chat Panel - Left side */}
-              <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {isMobile ? (
+            // Mobile: Show one panel at a time
+            <div className="flex-1 min-w-0">
+              {mobileView === "chat" ? (
                 <ChatPanel 
                   messages={messages} 
                   onSendMessage={handleSendMessage} 
                   isLoading={isLoading} 
                 />
-              </ResizablePanel>
-
-              <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
-
-              {/* Preview Panel - Right side (larger, main focus) */}
-              <ResizablePanel defaultSize={65} minSize={40}>
+              ) : (
                 <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </div>
-        )}
+              )}
+            </div>
+          ) : (
+            // Desktop: Resizable panels with optional file explorer and code editor
+            <div className="flex-1 flex min-w-0">
+              {/* File Explorer Panel */}
+              <AnimatePresence>
+                {showFileExplorer && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 240, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="shrink-0 overflow-hidden"
+                  >
+                    <FileExplorerPanel
+                      files={fileSystem.files}
+                      activeFileId={fileSystem.activeFileId}
+                      onFileSelect={handleFileSelect}
+                      onToggleFolder={fileSystem.toggleFolder}
+                      onCreateFile={handleCreateFile}
+                      onDeleteFile={fileSystem.removeFile}
+                      onClose={() => setShowFileExplorer(false)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Code Editor Panel */}
+              <AnimatePresence>
+                {showCodeEditor && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 400, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="shrink-0 overflow-hidden"
+                  >
+                    <CodeEditorPanel
+                      file={fileSystem.activeFile}
+                      openTabs={fileSystem.openTabs}
+                      activeFileId={fileSystem.activeFileId}
+                      files={fileSystem.files}
+                      onTabSelect={fileSystem.openFile}
+                      onTabClose={fileSystem.closeTab}
+                      onContentChange={fileSystem.updateFile}
+                      onClose={() => setShowCodeEditor(false)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
+                {/* Chat Panel - Left side */}
+                <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+                  <ChatPanel 
+                    messages={messages} 
+                    onSendMessage={handleSendMessage} 
+                    isLoading={isLoading} 
+                  />
+                </ResizablePanel>
+
+                <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
+
+                {/* Preview Panel - Right side (larger, main focus) */}
+                <ResizablePanel defaultSize={65} minSize={40}>
+                  <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+          )}
+        </div>
+
+        {/* Console Panel */}
+        <AnimatePresence>
+          {showConsole && (
+            <ConsolePanel
+              logs={console.logs}
+              onClear={console.clear}
+              onClose={() => setShowConsole(false)}
+              isExpanded={consoleExpanded}
+              onToggleExpand={() => setConsoleExpanded(!consoleExpanded)}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Diff View for pending changes */}
