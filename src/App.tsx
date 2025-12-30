@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import Admin from "./pages/Admin";
 import Setup from "./pages/Setup";
+import PreviewPage from "./pages/PreviewPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/setup" element={<Setup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/editor/:projectId" element={<Editor />} />
+            <Route path="/preview/:projectId" element={<PreviewPage />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

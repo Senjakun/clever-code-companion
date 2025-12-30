@@ -1,22 +1,24 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Menu, Share2, Eye } from "lucide-react";
+import { ArrowLeft, Sparkles, Menu, Share2, Eye, FolderTree, Code2, X } from "lucide-react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DiffView } from "@/components/DiffView";
 import { UserMenu } from "@/components/UserMenu";
 import { CreditBlockModal } from "@/components/CreditBlockModal";
 import { GitHubIntegration } from "@/components/GitHubIntegration";
+import { FileExplorerPanel } from "@/components/FileExplorerPanel";
+import { CodeEditorPanel } from "@/components/CodeEditorPanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useFileSystem } from "@/hooks/useFileSystem";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { findFileById, FileChange, getAllFiles } from "@/lib/file-system";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -38,6 +40,10 @@ export default function Editor() {
   const [showCreditBlock, setShowCreditBlock] = useState(false);
   const [projectName, setProjectName] = useState("Untitled");
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
+  
+  // Panel visibility states
+  const [showFileExplorer, setShowFileExplorer] = useState(false);
+  const [showCodeEditor, setShowCodeEditor] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -186,6 +192,18 @@ export default function Editor() {
     }
   };
 
+  const handleFileSelect = (fileId: string) => {
+    fileSystem.openFile(fileId);
+    setShowCodeEditor(true);
+  };
+
+  const handleCreateFile = (parentId: string | null) => {
+    const fileName = prompt("Enter file name:");
+    if (fileName) {
+      fileSystem.createFile(parentId, fileName);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-background dark">
@@ -217,6 +235,28 @@ export default function Editor() {
               <span className="text-xs text-muted-foreground hidden sm:block">QuinYukie AI</span>
             </div>
           </div>
+        </div>
+
+        {/* Center Controls - Toggle Panels */}
+        <div className="hidden md:flex items-center gap-1 bg-muted/50 rounded-xl p-1">
+          <Button
+            variant={showFileExplorer ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 px-3 rounded-lg text-xs gap-1.5"
+            onClick={() => setShowFileExplorer(!showFileExplorer)}
+          >
+            <FolderTree className="h-3.5 w-3.5" />
+            Files
+          </Button>
+          <Button
+            variant={showCodeEditor ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 px-3 rounded-lg text-xs gap-1.5"
+            onClick={() => setShowCodeEditor(!showCodeEditor)}
+          >
+            <Code2 className="h-3.5 w-3.5" />
+            Code
+          </Button>
         </div>
 
         {/* Mobile View Toggle */}
@@ -272,28 +312,77 @@ export default function Editor() {
                 isLoading={isLoading} 
               />
             ) : (
-              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
+              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
             )}
           </div>
         ) : (
-          // Desktop: Resizable panels - Chat left, Preview right (like Lovable)
-          <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
-            {/* Chat Panel - Left side */}
-            <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-              <ChatPanel 
-                messages={messages} 
-                onSendMessage={handleSendMessage} 
-                isLoading={isLoading} 
-              />
-            </ResizablePanel>
+          // Desktop: Resizable panels with optional file explorer and code editor
+          <div className="flex-1 flex min-w-0">
+            {/* File Explorer Panel */}
+            <AnimatePresence>
+              {showFileExplorer && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 240, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="shrink-0 overflow-hidden"
+                >
+                  <FileExplorerPanel
+                    files={fileSystem.files}
+                    activeFileId={fileSystem.activeFileId}
+                    onFileSelect={handleFileSelect}
+                    onToggleFolder={fileSystem.toggleFolder}
+                    onCreateFile={handleCreateFile}
+                    onDeleteFile={fileSystem.removeFile}
+                    onClose={() => setShowFileExplorer(false)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
+            {/* Code Editor Panel */}
+            <AnimatePresence>
+              {showCodeEditor && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 400, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="shrink-0 overflow-hidden"
+                >
+                  <CodeEditorPanel
+                    file={fileSystem.activeFile}
+                    openTabs={fileSystem.openTabs}
+                    activeFileId={fileSystem.activeFileId}
+                    files={fileSystem.files}
+                    onTabSelect={fileSystem.openFile}
+                    onTabClose={fileSystem.closeTab}
+                    onContentChange={fileSystem.updateFile}
+                    onClose={() => setShowCodeEditor(false)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {/* Preview Panel - Right side (larger, main focus) */}
-            <ResizablePanel defaultSize={65} minSize={40}>
-              <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+            <ResizablePanelGroup direction="horizontal" className="flex-1 min-w-0">
+              {/* Chat Panel - Left side */}
+              <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+                <ChatPanel 
+                  messages={messages} 
+                  onSendMessage={handleSendMessage} 
+                  isLoading={isLoading} 
+                />
+              </ResizablePanel>
+
+              <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
+
+              {/* Preview Panel - Right side (larger, main focus) */}
+              <ResizablePanel defaultSize={65} minSize={40}>
+                <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
         )}
       </div>
 
