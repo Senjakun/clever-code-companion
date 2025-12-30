@@ -47,7 +47,6 @@ serve(async (req) => {
         const errorData = await response.text();
         console.error("Gemini API error:", errorData);
         
-        // Parse specific error messages
         let errorMessage = "Invalid API key or API error";
         if (errorData.includes("API_KEY_INVALID")) {
           errorMessage = "Invalid API key. Please check your Gemini API key.";
@@ -134,9 +133,113 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
 
+    } else if (provider === "deepseek") {
+      // Test DeepSeek API (OpenAI-compatible)
+      const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            { role: "user", content: "Say 'API key is valid' in exactly those words." }
+          ],
+          max_tokens: 20,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("DeepSeek API error:", errorData);
+        
+        let errorMessage = "Invalid API key or API error";
+        try {
+          const parsed = JSON.parse(errorData);
+          if (parsed.error?.message) {
+            errorMessage = parsed.error.message;
+          }
+        } catch (e) {
+          // Use default error message
+        }
+        
+        return new Response(
+          JSON.stringify({ success: false, error: errorMessage }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const data = await response.json();
+      const responseText = data.choices?.[0]?.message?.content || "";
+      
+      console.log("DeepSeek response:", responseText);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "DeepSeek API key is valid!",
+          model: data.model || "deepseek-chat",
+          response: responseText.substring(0, 100)
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+
+    } else if (provider === "groq") {
+      // Test Groq API (OpenAI-compatible)
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "user", content: "Say 'API key is valid' in exactly those words." }
+          ],
+          max_tokens: 20,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Groq API error:", errorData);
+        
+        let errorMessage = "Invalid API key or API error";
+        try {
+          const parsed = JSON.parse(errorData);
+          if (parsed.error?.message) {
+            errorMessage = parsed.error.message;
+          }
+        } catch (e) {
+          // Use default error message
+        }
+        
+        return new Response(
+          JSON.stringify({ success: false, error: errorMessage }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const data = await response.json();
+      const responseText = data.choices?.[0]?.message?.content || "";
+      
+      console.log("Groq response:", responseText);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Groq API key is valid!",
+          model: data.model || "llama-3.3-70b-versatile",
+          response: responseText.substring(0, 100)
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+
     } else {
       return new Response(
-        JSON.stringify({ success: false, error: "Unknown provider. Use 'gemini' or 'openai'." }),
+        JSON.stringify({ success: false, error: "Unknown provider. Use 'gemini', 'openai', 'deepseek', or 'groq'." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
