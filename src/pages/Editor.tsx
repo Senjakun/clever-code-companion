@@ -242,6 +242,34 @@ export default function Editor() {
     }
   };
 
+  // Iterative Refinement Handler
+  const handleRefine = useCallback((feedback: string, type: "fix" | "improve" | "custom") => {
+    const lastAssistantMessage = messages.filter(m => m.role === "assistant").pop();
+    
+    if (!lastAssistantMessage) return;
+
+    // Build context with the previous response
+    const refinementPrompt = `
+## Previous AI Response:
+${lastAssistantMessage.content}
+
+## Refinement Request (${type}):
+${feedback}
+
+## Instructions:
+Based on the code you generated previously, please apply the refinement request above. 
+Make sure to output the corrected/improved code in the same format:
+===FILE: path/to/file.tsx===
+\`\`\`tsx
+// Complete file content here
+\`\`\`
+===END_FILE===
+`;
+
+    console.info(`Iterative refinement: ${type}`, "AI");
+    handleSendMessage(refinementPrompt);
+  }, [messages, handleSendMessage]);
+
   const handleFileSelect = (fileId: string) => {
     fileSystem.openFile(fileId);
     setShowCodeEditor(true);
@@ -406,8 +434,10 @@ export default function Editor() {
               {mobileView === "chat" ? (
                 <ChatPanel 
                   messages={messages} 
-                  onSendMessage={handleSendMessage} 
-                  isLoading={isLoading} 
+                  onSendMessage={handleSendMessage}
+                  onRefine={handleRefine}
+                  isLoading={isLoading}
+                  hasFileChanges={fileSystem.pendingChanges.length > 0}
                 />
               ) : (
                 <PreviewPanel files={fileSystem.files} code={fileSystem.activeFile?.content} projectId={projectId} />
@@ -468,8 +498,10 @@ export default function Editor() {
                 <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
                   <ChatPanel 
                     messages={messages} 
-                    onSendMessage={handleSendMessage} 
-                    isLoading={isLoading} 
+                    onSendMessage={handleSendMessage}
+                    onRefine={handleRefine}
+                    isLoading={isLoading}
+                    hasFileChanges={fileSystem.pendingChanges.length > 0}
                   />
                 </ResizablePanel>
 

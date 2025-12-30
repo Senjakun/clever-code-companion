@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { IterativeRefinement } from "./IterativeRefinement";
 
 interface Message {
   id: string;
@@ -15,10 +16,12 @@ interface Message {
 interface ChatAreaProps {
   messages: Message[];
   onSendMessage: (content: string) => void;
+  onRefine?: (feedback: string, type: "fix" | "improve" | "custom") => void;
   isLoading?: boolean;
+  hasFileChanges?: boolean;
 }
 
-export function ChatArea({ messages, onSendMessage, isLoading }: ChatAreaProps) {
+export function ChatArea({ messages, onSendMessage, onRefine, isLoading, hasFileChanges }: ChatAreaProps) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -122,6 +125,16 @@ export function ChatArea({ messages, onSendMessage, isLoading }: ChatAreaProps) 
                 </div>
               </div>
             </div>
+          )}
+          
+          {/* Iterative Refinement Panel */}
+          {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && onRefine && (
+            <IterativeRefinement
+              lastResponse={messages[messages.length - 1]?.content || ""}
+              onRefine={onRefine}
+              isLoading={isLoading}
+              hasFileChanges={hasFileChanges}
+            />
           )}
         </div>
       </ScrollArea>
