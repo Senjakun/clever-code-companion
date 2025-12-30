@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { Github, Link, Unlink, GitBranch, Upload, Download, RefreshCw, Check, ExternalLink, FolderGit2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Github, Link, Unlink, GitBranch, Upload, Download, RefreshCw, Check, ExternalLink, FolderGit2, Settings, Zap, ZapOff, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -58,12 +59,85 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
   const [commitMessage, setCommitMessage] = useState("");
   const [personalToken, setPersonalToken] = useState("");
   const [showToken, setShowToken] = useState(false);
+  
+  // Auto-sync state
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const lastFilesRef = useRef<string>("");
+  const autoSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // New repo creation state
+  const [newRepoName, setNewRepoName] = useState("");
+  const [newRepoPrivate, setNewRepoPrivate] = useState(true);
+  const [showCreateRepo, setShowCreateRepo] = useState(false);
 
   useEffect(() => {
     if (open && user) {
       loadGitHubConnection();
     }
   }, [open, user]);
+
+  // Auto-sync effect - detect file changes
+  useEffect(() => {
+    if (!autoSyncEnabled || !selectedRepo || !personalToken) return;
+
+    const currentFilesHash = JSON.stringify(files);
+    
+    if (lastFilesRef.current && lastFilesRef.current !== currentFilesHash) {
+      // Files changed, debounce sync
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
+      
+      autoSyncTimeoutRef.current = setTimeout(() => {
+        performAutoSync();
+      }, 3000); // 3 second debounce
+    }
+    
+    lastFilesRef.current = currentFilesHash;
+
+    return () => {
+      if (autoSyncTimeoutRef.current) {
+        clearTimeout(autoSyncTimeoutRef.current);
+      }
+    };
+  }, [files, autoSyncEnabled, selectedRepo, personalToken]);
+
+  const performAutoSync = async () => {
+    if (!selectedRepo || !personalToken) return;
+
+    setSyncStatus("syncing");
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          action: "push",
+          token: personalToken,
+          repo: selectedRepo,
+          message: `Auto-sync: ${new Date().toLocaleString()}`,
+          files: files,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Auto-sync failed");
+      }
+
+      setLastSyncTime(new Date());
+      setSyncStatus("success");
+      
+      setTimeout(() => setSyncStatus("idle"), 2000);
+    } catch (error) {
+      console.error("Auto-sync error:", error);
+      setSyncStatus("error");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
+  };
 
   const loadGitHubConnection = async () => {
     try {
@@ -76,6 +150,28 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
       if (data) {
         setPersonalToken(data.key_value);
         await fetchUserInfo(data.key_value);
+      }
+
+      // Load saved repo preference
+      const { data: repoData } = await supabase
+        .from("api_keys")
+        .select("*")
+        .eq("key_name", "github_selected_repo")
+        .maybeSingle();
+
+      if (repoData) {
+        setSelectedRepo(repoData.key_value);
+      }
+
+      // Load auto-sync preference
+      const { data: autoSyncData } = await supabase
+        .from("api_keys")
+        .select("*")
+        .eq("key_name", "github_auto_sync")
+        .maybeSingle();
+
+      if (autoSyncData) {
+        setAutoSyncEnabled(autoSyncData.key_value === "true");
       }
     } catch (error) {
       console.error("Error loading GitHub connection:", error);
@@ -138,7 +234,6 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
 
     setLoading(true);
     try {
-      // Verify token
       const response = await fetch("https://api.github.com/user", {
         headers: {
           Authorization: `Bearer ${personalToken}`,
@@ -152,7 +247,6 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
 
       const userData = await response.json();
 
-      // Save token to database
       const { error } = await supabase.from("api_keys").upsert({
         key_name: "github_token",
         key_value: personalToken,
@@ -186,10 +280,13 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
   const handleDisconnect = async () => {
     try {
       await supabase.from("api_keys").delete().eq("key_name", "github_token");
+      await supabase.from("api_keys").delete().eq("key_name", "github_selected_repo");
+      await supabase.from("api_keys").delete().eq("key_name", "github_auto_sync");
       setConnection({ connected: false });
       setPersonalToken("");
       setRepositories([]);
       setSelectedRepo("");
+      setAutoSyncEnabled(false);
       toast({
         title: "Disconnected",
         description: "GitHub account has been disconnected",
@@ -201,6 +298,32 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
         variant: "destructive",
       });
     }
+  };
+
+  const handleRepoSelect = async (repoFullName: string) => {
+    setSelectedRepo(repoFullName);
+    
+    // Save selection
+    await supabase.from("api_keys").upsert({
+      key_name: "github_selected_repo",
+      key_value: repoFullName,
+    }, { onConflict: "key_name" });
+  };
+
+  const handleAutoSyncToggle = async (enabled: boolean) => {
+    setAutoSyncEnabled(enabled);
+    
+    await supabase.from("api_keys").upsert({
+      key_name: "github_auto_sync",
+      key_value: enabled.toString(),
+    }, { onConflict: "key_name" });
+
+    toast({
+      title: enabled ? "Auto-sync enabled" : "Auto-sync disabled",
+      description: enabled 
+        ? "Changes will automatically push to GitHub" 
+        : "Manual push required for changes",
+    });
   };
 
   const handlePush = async () => {
@@ -241,6 +364,7 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
         description: `Changes pushed to ${selectedRepo}`,
       });
       setCommitMessage("");
+      setLastSyncTime(new Date());
     } catch (error) {
       toast({
         title: "Push failed",
@@ -303,8 +427,14 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
   };
 
   const handleCreateRepo = async () => {
-    const repoName = prompt("Enter new repository name:");
-    if (!repoName) return;
+    if (!newRepoName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a repository name",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -316,9 +446,10 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: repoName,
-          private: true,
+          name: newRepoName,
+          private: newRepoPrivate,
           auto_init: true,
+          description: `Created from QuinYukie AI - ${projectId}`,
         }),
       });
 
@@ -329,12 +460,45 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
 
       const newRepo = await response.json();
       await fetchRepositories(personalToken);
-      setSelectedRepo(newRepo.full_name);
+      handleRepoSelect(newRepo.full_name);
+      setShowCreateRepo(false);
+      setNewRepoName("");
 
       toast({
         title: "Repository created!",
-        description: `${newRepo.full_name} has been created`,
+        description: `${newRepo.full_name} has been created and connected`,
       });
+
+      // Auto push initial code
+      setTimeout(async () => {
+        if (files.length > 0) {
+          setLoading(true);
+          try {
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-sync`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({
+                action: "push",
+                token: personalToken,
+                repo: newRepo.full_name,
+                message: "Initial commit from QuinYukie AI",
+                files: files,
+              }),
+            });
+            toast({
+              title: "Initial push complete!",
+              description: "Your code has been pushed to the new repository",
+            });
+          } catch (e) {
+            console.error("Initial push failed:", e);
+          } finally {
+            setLoading(false);
+          }
+        }
+      }, 2000);
     } catch (error) {
       toast({
         title: "Error",
@@ -346,22 +510,40 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
     }
   };
 
+  const getSyncStatusIcon = () => {
+    switch (syncStatus) {
+      case "syncing":
+        return <RefreshCw className="h-3 w-3 animate-spin text-primary" />;
+      case "success":
+        return <Check className="h-3 w-3 text-green-500" />;
+      case "error":
+        return <ZapOff className="h-3 w-3 text-destructive" />;
+      default:
+        return autoSyncEnabled ? <Zap className="h-3 w-3 text-primary" /> : null;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          className="h-9 gap-2 rounded-xl border-border/50"
+          className="h-9 gap-2 rounded-xl border-border/50 bg-card hover:bg-muted"
         >
-          <Github className="h-4 w-4" />
-          <span className="hidden sm:inline">GitHub</span>
+          <Github className="h-4 w-4 text-foreground" />
+          <span className="hidden sm:inline text-foreground">GitHub</span>
+          {connection.connected && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-green-500/20 text-green-400 border-green-500/30">
+              {getSyncStatusIcon()}
+            </Badge>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <Github className="h-5 w-5 text-foreground" />
             GitHub Integration
           </DialogTitle>
           <DialogDescription>
@@ -371,6 +553,16 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
 
         {!connection.connected ? (
           <div className="space-y-4 py-4">
+            <div className="p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                <Github className="h-4 w-4" />
+                Connect to GitHub
+              </h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Link your GitHub account to push and pull code directly from the editor.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="github-token">Personal Access Token</Label>
               <div className="relative">
@@ -421,8 +613,9 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
           </div>
         ) : (
           <Tabs defaultValue="sync" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="sync">Sync</TabsTrigger>
+              <TabsTrigger value="auto">Auto-Sync</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
@@ -446,44 +639,87 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
                 </Badge>
               </div>
 
-              {/* Repository Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Repository</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={handleCreateRepo}
-                    disabled={loading}
+              {/* Repository Selection or Create */}
+              {showCreateRepo ? (
+                <div className="space-y-3 p-4 rounded-lg border border-primary/30 bg-primary/5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Create New Repository</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => setShowCreateRepo(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <Input
+                    placeholder="my-awesome-project"
+                    value={newRepoName}
+                    onChange={(e) => setNewRepoName(e.target.value)}
+                  />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="private-repo" className="text-xs text-muted-foreground">
+                      Private repository
+                    </Label>
+                    <Switch
+                      id="private-repo"
+                      checked={newRepoPrivate}
+                      onCheckedChange={setNewRepoPrivate}
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleCreateRepo} 
+                    disabled={loading || !newRepoName.trim()}
+                    className="w-full"
                   >
-                    <FolderGit2 className="h-3 w-3 mr-1" />
-                    Create New
+                    {loading ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FolderGit2 className="h-4 w-4 mr-2" />
+                    )}
+                    Create & Connect
                   </Button>
                 </div>
-                <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a repository" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-[200px]">
-                      {repositories.map((repo) => (
-                        <SelectItem key={repo.id} value={repo.full_name}>
-                          <div className="flex items-center gap-2">
-                            <GitBranch className="h-3 w-3" />
-                            <span>{repo.full_name}</span>
-                            {repo.private && (
-                              <Badge variant="outline" className="text-[10px] h-4">
-                                Private
-                              </Badge>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Repository</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setShowCreateRepo(true)}
+                      disabled={loading}
+                    >
+                      <FolderGit2 className="h-3 w-3" />
+                      Create New
+                    </Button>
+                  </div>
+                  <Select value={selectedRepo} onValueChange={handleRepoSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a repository" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <ScrollArea className="h-[200px]">
+                        {repositories.map((repo) => (
+                          <SelectItem key={repo.id} value={repo.full_name}>
+                            <div className="flex items-center gap-2">
+                              <GitBranch className="h-3 w-3" />
+                              <span>{repo.full_name}</span>
+                              {repo.private && (
+                                <Badge variant="outline" className="text-[10px] h-4">
+                                  Private
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Commit Message */}
               <div className="space-y-2">
@@ -538,6 +774,71 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
               )}
             </TabsContent>
 
+            <TabsContent value="auto" className="space-y-4 mt-4">
+              <div className="p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" />
+                    <h4 className="font-medium">Auto-Sync</h4>
+                  </div>
+                  <Switch
+                    checked={autoSyncEnabled}
+                    onCheckedChange={handleAutoSyncToggle}
+                    disabled={!selectedRepo}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Automatically push changes to GitHub when files are modified. 
+                  Changes are synced with a 3-second debounce.
+                </p>
+              </div>
+
+              {!selectedRepo && (
+                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                  <p className="text-xs text-yellow-500">
+                    Please select a repository first to enable auto-sync.
+                  </p>
+                </div>
+              )}
+
+              {autoSyncEnabled && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Last sync</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {lastSyncTime 
+                        ? lastSyncTime.toLocaleTimeString() 
+                        : "Never"
+                      }
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      {getSyncStatusIcon()}
+                      <span className="text-sm">Status</span>
+                    </div>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {syncStatus}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Repository</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                      {selectedRepo}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
             <TabsContent value="settings" className="space-y-4 mt-4">
               <div className="p-4 rounded-lg bg-muted/50 border border-border/50 space-y-3">
                 <h4 className="font-medium text-sm">Account</h4>
@@ -561,6 +862,23 @@ export function GitHubIntegration({ projectId, files, onImportFiles }: GitHubInt
                     </a>
                   </div>
                 </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+                <h4 className="font-medium text-sm">Token Permissions</h4>
+                <p className="text-xs text-muted-foreground">
+                  Your token has access to repositories. To change permissions, 
+                  generate a new token on GitHub.
+                </p>
+                <a
+                  href="https://github.com/settings/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Manage Tokens
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
 
               <Button
