@@ -2,10 +2,14 @@
 
 # ===================================
 # Auto Update Script (Git Pull & Rebuild)
-# Clever Code Companion
+# Pendamping Kode Cerdas
+# Repository: Senjakun/pendamping-kode-cerdas
 # ===================================
 
 set -e
+
+# Configuration
+APP_DIR="/var/www/pendamping-kode-cerdas"
 
 # Colors for output
 RED='\033[0;31m'
@@ -22,9 +26,7 @@ fi
 
 echo -e "${BLUE}🔄 Starting auto-update...${NC}"
 
-# Get current directory (project root)
-PROJECT_DIR=$(dirname "$(dirname "$(readlink -f "$0")")")
-cd "$PROJECT_DIR"
+cd "$APP_DIR"
 
 echo -e "${YELLOW}[1/5]${NC} Fetching latest changes..."
 git fetch origin
