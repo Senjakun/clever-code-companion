@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Menu, Share2, Eye, FolderTree, Code2, X } from "lucide-react";
+import { ArrowLeft, Sparkles, Menu, Share2, Eye, FolderTree, Code2 } from "lucide-react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { DiffView } from "@/components/DiffView";
@@ -10,15 +10,20 @@ import { CreditBlockModal } from "@/components/CreditBlockModal";
 import { GitHubIntegration } from "@/components/GitHubIntegration";
 import { FileExplorerPanel } from "@/components/FileExplorerPanel";
 import { CodeEditorPanel } from "@/components/CodeEditorPanel";
+import { ModelSelector } from "@/components/ModelSelector";
+import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { useFileSystem } from "@/hooks/useFileSystem";
+import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { findFileById, FileChange, getAllFiles } from "@/lib/file-system";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { getDefaultModel } from "@/lib/ai-config";
+import { buildSmartContext } from "@/lib/context-manager";
 
 interface Message {
   id: string;
@@ -40,10 +45,14 @@ export default function Editor() {
   const [showCreditBlock, setShowCreditBlock] = useState(false);
   const [projectName, setProjectName] = useState("Untitled");
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
+  const [selectedModel, setSelectedModel] = useState(getDefaultModel().id);
   
   // Panel visibility states
   const [showFileExplorer, setShowFileExplorer] = useState(false);
   const [showCodeEditor, setShowCodeEditor] = useState(false);
+
+  // Version history
+  const versionHistory = useVersionHistory(fileSystem.files);
 
   useEffect(() => {
     if (!authLoading && !user) {
