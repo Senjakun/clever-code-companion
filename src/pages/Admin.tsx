@@ -50,13 +50,21 @@ export default function Admin() {
   
   const [geminiKey, setGeminiKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
+  const [deepseekKey, setDeepseekKey] = useState('');
+  const [groqKey, setGroqKey] = useState('');
   const [showGemini, setShowGemini] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
+  const [showDeepseek, setShowDeepseek] = useState(false);
+  const [showGroq, setShowGroq] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
   const [testingOpenai, setTestingOpenai] = useState(false);
+  const [testingDeepseek, setTestingDeepseek] = useState(false);
+  const [testingGroq, setTestingGroq] = useState(false);
   const [geminiStatus, setGeminiStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [deepseekStatus, setDeepseekStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [groqStatus, setGroqStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // SMTP State
   const [smtp, setSmtp] = useState<SmtpConfig>({
@@ -123,6 +131,8 @@ export default function Admin() {
       keysData.forEach((k) => {
         if (k.key_name === 'gemini') setGeminiKey(k.key_value);
         if (k.key_name === 'openai') setOpenaiKey(k.key_value);
+        if (k.key_name === 'deepseek') setDeepseekKey(k.key_value);
+        if (k.key_name === 'groq') setGroqKey(k.key_value);
         if (k.key_name === 'smtp_config') {
           try {
             const config = JSON.parse(k.key_value);
@@ -167,6 +177,8 @@ export default function Admin() {
     const keys = [
       { key_name: 'gemini', key_value: geminiKey },
       { key_name: 'openai', key_value: openaiKey },
+      { key_name: 'deepseek', key_value: deepseekKey },
+      { key_name: 'groq', key_value: groqKey },
     ];
 
     for (const key of keys) {
@@ -191,25 +203,36 @@ export default function Admin() {
     fetchData();
   };
 
-  const handleTestApiKey = async (provider: 'gemini' | 'openai') => {
-    const apiKey = provider === 'gemini' ? geminiKey : openaiKey;
+  const handleTestApiKey = async (provider: 'gemini' | 'openai' | 'deepseek' | 'groq') => {
+    const apiKeyMap: Record<string, string> = {
+      gemini: geminiKey,
+      openai: openaiKey,
+      deepseek: deepseekKey,
+      groq: groqKey,
+    };
+    const apiKey = apiKeyMap[provider];
+    
+    const providerNames: Record<string, string> = {
+      gemini: 'Gemini',
+      openai: 'OpenAI',
+      deepseek: 'DeepSeek',
+      groq: 'Groq',
+    };
     
     if (!apiKey.trim()) {
       toast({ 
         title: 'API Key Required', 
-        description: `Please enter a ${provider === 'gemini' ? 'Gemini' : 'OpenAI'} API key first`,
+        description: `Please enter a ${providerNames[provider]} API key first`,
         variant: 'destructive' 
       });
       return;
     }
 
-    if (provider === 'gemini') {
-      setTestingGemini(true);
-      setGeminiStatus('idle');
-    } else {
-      setTestingOpenai(true);
-      setOpenaiStatus('idle');
-    }
+    // Set testing state
+    if (provider === 'gemini') { setTestingGemini(true); setGeminiStatus('idle'); }
+    else if (provider === 'openai') { setTestingOpenai(true); setOpenaiStatus('idle'); }
+    else if (provider === 'deepseek') { setTestingDeepseek(true); setDeepseekStatus('idle'); }
+    else if (provider === 'groq') { setTestingGroq(true); setGroqStatus('idle'); }
 
     try {
       const { data, error } = await supabase.functions.invoke('test-api-key', {
@@ -218,22 +241,21 @@ export default function Admin() {
 
       if (error) throw error;
 
+      const setStatus = (status: 'success' | 'error') => {
+        if (provider === 'gemini') setGeminiStatus(status);
+        else if (provider === 'openai') setOpenaiStatus(status);
+        else if (provider === 'deepseek') setDeepseekStatus(status);
+        else if (provider === 'groq') setGroqStatus(status);
+      };
+
       if (data.success) {
-        if (provider === 'gemini') {
-          setGeminiStatus('success');
-        } else {
-          setOpenaiStatus('success');
-        }
+        setStatus('success');
         toast({ 
           title: 'Connection Successful!',
           description: data.message,
         });
       } else {
-        if (provider === 'gemini') {
-          setGeminiStatus('error');
-        } else {
-          setOpenaiStatus('error');
-        }
+        setStatus('error');
         toast({ 
           title: 'Connection Failed',
           description: data.error,
@@ -242,22 +264,20 @@ export default function Admin() {
       }
     } catch (error: any) {
       console.error('Test API key error:', error);
-      if (provider === 'gemini') {
-        setGeminiStatus('error');
-      } else {
-        setOpenaiStatus('error');
-      }
+      if (provider === 'gemini') setGeminiStatus('error');
+      else if (provider === 'openai') setOpenaiStatus('error');
+      else if (provider === 'deepseek') setDeepseekStatus('error');
+      else if (provider === 'groq') setGroqStatus('error');
       toast({ 
         title: 'Test Failed',
         description: error.message || 'Failed to test API key',
         variant: 'destructive',
       });
     } finally {
-      if (provider === 'gemini') {
-        setTestingGemini(false);
-      } else {
-        setTestingOpenai(false);
-      }
+      if (provider === 'gemini') setTestingGemini(false);
+      else if (provider === 'openai') setTestingOpenai(false);
+      else if (provider === 'deepseek') setTestingDeepseek(false);
+      else if (provider === 'groq') setTestingGroq(false);
     }
   };
 
@@ -562,15 +582,133 @@ export default function Admin() {
                     </p>
                   </div>
 
+                  {/* DeepSeek API Key */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>DeepSeek API Key (Logic Engine)</Label>
+                      {deepseekStatus === 'success' && (
+                        <div className="flex items-center gap-1 text-green-500 text-xs">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Connected</span>
+                        </div>
+                      )}
+                      {deepseekStatus === 'error' && (
+                        <div className="flex items-center gap-1 text-red-500 text-xs">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>Failed</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showDeepseek ? 'text' : 'password'}
+                          placeholder="sk-..."
+                          value={deepseekKey}
+                          onChange={(e) => {
+                            setDeepseekKey(e.target.value);
+                            setDeepseekStatus('idle');
+                          }}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full w-10"
+                          onClick={() => setShowDeepseek(!showDeepseek)}
+                        >
+                          {showDeepseek ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="default"
+                        onClick={() => handleTestApiKey('deepseek')}
+                        disabled={testingDeepseek || !deepseekKey.trim()}
+                        className="gap-2 shrink-0"
+                      >
+                        {testingDeepseek ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Zap className="h-4 w-4" />
+                        )}
+                        Test
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">DeepSeek Platform</a>
+                    </p>
+                  </div>
+
+                  {/* Groq API Key */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Groq API Key (Fast Executor)</Label>
+                      {groqStatus === 'success' && (
+                        <div className="flex items-center gap-1 text-green-500 text-xs">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Connected</span>
+                        </div>
+                      )}
+                      {groqStatus === 'error' && (
+                        <div className="flex items-center gap-1 text-red-500 text-xs">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>Failed</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showGroq ? 'text' : 'password'}
+                          placeholder="gsk_..."
+                          value={groqKey}
+                          onChange={(e) => {
+                            setGroqKey(e.target.value);
+                            setGroqStatus('idle');
+                          }}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full w-10"
+                          onClick={() => setShowGroq(!showGroq)}
+                        >
+                          {showGroq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="default"
+                        onClick={() => handleTestApiKey('groq')}
+                        disabled={testingGroq || !groqKey.trim()}
+                        className="gap-2 shrink-0"
+                      >
+                        {testingGroq ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Zap className="h-4 w-4" />
+                        )}
+                        Test
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Groq Console</a>
+                    </p>
+                  </div>
+
                   <div className="pt-4 border-t border-border">
                     <Button onClick={handleSaveApiKeys} disabled={savingKeys} className="gap-2">
                       {savingKeys ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Save API Keys
+                      Save All API Keys
                     </Button>
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    API keys are stored securely in the database and used server-side only.
+                    API keys are stored securely in the database and used server-side only via Edge Functions.
                   </p>
                 </CardContent>
               </Card>
