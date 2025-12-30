@@ -2,8 +2,8 @@
 
 # ===================================
 # Auto Install & Deploy Script
-# Pendamping Kode Cerdas
-# Repository: Senjakun/pendamping-kode-cerdas
+# Clever Code Companion
+# Repository: Senjakun/clever-code-companion
 # ===================================
 
 set -e
