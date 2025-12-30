@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Users, Key, Save, Eye, EyeOff, Loader2, Mail, Send, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import { ArrowLeft, Users, Key, Save, Eye, EyeOff, Loader2, Mail, Send, CheckCircle, AlertCircle, FileText, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,6 +53,10 @@ export default function Admin() {
   const [showGemini, setShowGemini] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
+  const [testingGemini, setTestingGemini] = useState(false);
+  const [testingOpenai, setTestingOpenai] = useState(false);
+  const [geminiStatus, setGeminiStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // SMTP State
   const [smtp, setSmtp] = useState<SmtpConfig>({
@@ -185,6 +189,76 @@ export default function Admin() {
     toast({ title: 'API Keys saved' });
     setSavingKeys(false);
     fetchData();
+  };
+
+  const handleTestApiKey = async (provider: 'gemini' | 'openai') => {
+    const apiKey = provider === 'gemini' ? geminiKey : openaiKey;
+    
+    if (!apiKey.trim()) {
+      toast({ 
+        title: 'API Key Required', 
+        description: `Please enter a ${provider === 'gemini' ? 'Gemini' : 'OpenAI'} API key first`,
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    if (provider === 'gemini') {
+      setTestingGemini(true);
+      setGeminiStatus('idle');
+    } else {
+      setTestingOpenai(true);
+      setOpenaiStatus('idle');
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('test-api-key', {
+        body: { provider, apiKey }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        if (provider === 'gemini') {
+          setGeminiStatus('success');
+        } else {
+          setOpenaiStatus('success');
+        }
+        toast({ 
+          title: 'Connection Successful!',
+          description: data.message,
+        });
+      } else {
+        if (provider === 'gemini') {
+          setGeminiStatus('error');
+        } else {
+          setOpenaiStatus('error');
+        }
+        toast({ 
+          title: 'Connection Failed',
+          description: data.error,
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Test API key error:', error);
+      if (provider === 'gemini') {
+        setGeminiStatus('error');
+      } else {
+        setOpenaiStatus('error');
+      }
+      toast({ 
+        title: 'Test Failed',
+        description: error.message || 'Failed to test API key',
+        variant: 'destructive',
+      });
+    } finally {
+      if (provider === 'gemini') {
+        setTestingGemini(false);
+      } else {
+        setTestingOpenai(false);
+      }
+    }
   };
 
   const handleSaveSmtp = async () => {
@@ -370,54 +444,130 @@ export default function Admin() {
                   <CardDescription>Configure AI provider API keys (stored securely in database)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label>Google Gemini API Key</Label>
-                    <div className="relative">
-                      <Input
-                        type={showGemini ? 'text' : 'password'}
-                        placeholder="AIza..."
-                        value={geminiKey}
-                        onChange={(e) => setGeminiKey(e.target.value)}
-                        className="pr-10"
-                      />
+                  {/* Gemini API Key */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Google Gemini API Key</Label>
+                      {geminiStatus === 'success' && (
+                        <div className="flex items-center gap-1 text-green-500 text-xs">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Connected</span>
+                        </div>
+                      )}
+                      {geminiStatus === 'error' && (
+                        <div className="flex items-center gap-1 text-red-500 text-xs">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>Failed</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showGemini ? 'text' : 'password'}
+                          placeholder="AIza..."
+                          value={geminiKey}
+                          onChange={(e) => {
+                            setGeminiKey(e.target.value);
+                            setGeminiStatus('idle');
+                          }}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full w-10"
+                          onClick={() => setShowGemini(!showGemini)}
+                        >
+                          {showGemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full w-10"
-                        onClick={() => setShowGemini(!showGemini)}
+                        variant="outline"
+                        size="default"
+                        onClick={() => handleTestApiKey('gemini')}
+                        disabled={testingGemini || !geminiKey.trim()}
+                        className="gap-2 shrink-0"
                       >
-                        {showGemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {testingGemini ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Zap className="h-4 w-4" />
+                        )}
+                        Test
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a>
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>OpenAI API Key</Label>
-                    <div className="relative">
-                      <Input
-                        type={showOpenai ? 'text' : 'password'}
-                        placeholder="sk-..."
-                        value={openaiKey}
-                        onChange={(e) => setOpenaiKey(e.target.value)}
-                        className="pr-10"
-                      />
+                  {/* OpenAI API Key */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>OpenAI API Key</Label>
+                      {openaiStatus === 'success' && (
+                        <div className="flex items-center gap-1 text-green-500 text-xs">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Connected</span>
+                        </div>
+                      )}
+                      {openaiStatus === 'error' && (
+                        <div className="flex items-center gap-1 text-red-500 text-xs">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>Failed</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showOpenai ? 'text' : 'password'}
+                          placeholder="sk-..."
+                          value={openaiKey}
+                          onChange={(e) => {
+                            setOpenaiKey(e.target.value);
+                            setOpenaiStatus('idle');
+                          }}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full w-10"
+                          onClick={() => setShowOpenai(!showOpenai)}
+                        >
+                          {showOpenai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full w-10"
-                        onClick={() => setShowOpenai(!showOpenai)}
+                        variant="outline"
+                        size="default"
+                        onClick={() => handleTestApiKey('openai')}
+                        disabled={testingOpenai || !openaiKey.trim()}
+                        className="gap-2 shrink-0"
                       >
-                        {showOpenai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {testingOpenai ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Zap className="h-4 w-4" />
+                        )}
+                        Test
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a>
+                    </p>
                   </div>
 
-                  <Button onClick={handleSaveApiKeys} disabled={savingKeys} className="gap-2">
-                    {savingKeys ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save API Keys
-                  </Button>
+                  <div className="pt-4 border-t border-border">
+                    <Button onClick={handleSaveApiKeys} disabled={savingKeys} className="gap-2">
+                      {savingKeys ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Save API Keys
+                    </Button>
+                  </div>
 
                   <p className="text-xs text-muted-foreground">
                     API keys are stored securely in the database and used server-side only.

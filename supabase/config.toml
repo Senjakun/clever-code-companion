@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.github-sync]
 verify_jwt = false
+
+[functions.test-api-key]
+verify_jwt = false
