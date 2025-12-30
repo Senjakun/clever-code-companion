@@ -28,7 +28,7 @@ echo -e "${BLUE}🔄 Starting auto-update...${NC}"
 
 cd "$APP_DIR"
 
-echo -e "${YELLOW}[1/5]${NC} Fetching latest changes..."
+echo -e "${YELLOW}[1/6]${NC} Fetching latest changes..."
 git fetch origin
 
 # Check if there are updates
@@ -37,22 +37,57 @@ REMOTE=$(git rev-parse @{u})
 
 if [ "$LOCAL" = "$REMOTE" ]; then
   echo -e "${GREEN}✅ Already up to date!${NC}"
-  exit 0
+  echo -e "${YELLOW}Forcing rebuild anyway...${NC}"
 fi
 
-echo -e "${YELLOW}[2/5]${NC} Pulling latest code..."
-git pull origin main
+echo -e "${YELLOW}[2/6]${NC} Pulling latest code..."
+git pull origin main || true
 
-echo -e "${YELLOW}[3/5]${NC} Installing dependencies..."
+echo -e "${YELLOW}[3/6]${NC} Installing dependencies..."
 npm install
 
-echo -e "${YELLOW}[4/5]${NC} Building project..."
+echo -e "${YELLOW}[4/6]${NC} Building project..."
 npm run build
 
-echo -e "${YELLOW}[5/5]${NC} Deploying to Nginx..."
+echo -e "${YELLOW}[5/6]${NC} Ensuring Nginx SPA config..."
+cat > /etc/nginx/sites-available/default << 'NGINX_CONFIG'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/html;
+    index index.html;
+
+    server_name _;
+
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/json application/xml;
+
+    # SPA fallback - redirect all routes to index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
+NGINX_CONFIG
+
+echo -e "${YELLOW}[6/6]${NC} Deploying to Nginx..."
 rm -rf /var/www/html/*
 cp -r dist/* /var/www/html/
-systemctl reload nginx
+nginx -t && systemctl reload nginx
 
 echo ""
 echo -e "${GREEN}✅ Update complete!${NC}"
