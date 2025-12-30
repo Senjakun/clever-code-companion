@@ -113,6 +113,17 @@ export default function Setup() {
     setLoading(true);
 
     try {
+      // Validate required fields
+      if (!data.adminEmail || !data.adminPassword) {
+        toast({ 
+          title: 'Error', 
+          description: 'Email dan password admin harus diisi', 
+          variant: 'destructive' 
+        });
+        setLoading(false);
+        return;
+      }
+
       // 1. Create admin user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: data.adminEmail,
@@ -122,18 +133,24 @@ export default function Setup() {
         }
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        console.error('SignUp error:', signUpError);
+        throw signUpError;
+      }
 
-      if (authData.user) {
-        // 2. Set admin role
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .update({ role: 'admin' })
-          .eq('user_id', authData.user.id);
+      if (!authData.user) {
+        throw new Error('Gagal membuat akun admin');
+      }
 
-        if (roleError) {
-          console.error('Role update error:', roleError);
-        }
+      // 2. Set admin role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .update({ role: 'admin' })
+        .eq('user_id', authData.user.id);
+
+      if (roleError) {
+        console.error('Role update error:', roleError);
+        // Continue anyway, can be fixed later
       }
 
       // 3. Save API keys if provided
@@ -152,20 +169,26 @@ export default function Setup() {
         keysToInsert.push({ key_name: 'groq', key_value: data.groqKey });
       }
 
-      await supabase.from('api_keys').insert(keysToInsert);
+      const { error: keysError } = await supabase.from('api_keys').insert(keysToInsert);
+      
+      if (keysError) {
+        console.error('Keys insert error:', keysError);
+        // Continue anyway
+      }
 
       toast({ 
-        title: 'Setup Complete!', 
-        description: 'Your admin account has been created. Please login.',
+        title: 'Setup Selesai!', 
+        description: 'Akun admin berhasil dibuat. Silakan login.',
       });
 
       // Sign out and redirect to login
       await supabase.auth.signOut();
       navigate('/auth');
     } catch (error: any) {
+      console.error('Setup error:', error);
       toast({ 
         title: 'Setup Error', 
-        description: error.message || 'Failed to complete setup', 
+        description: error.message || 'Gagal menyelesaikan setup', 
         variant: 'destructive' 
       });
     } finally {
