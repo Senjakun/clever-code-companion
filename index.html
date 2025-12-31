@@ -20,7 +20,41 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <noscript>
+      <div style="padding:16px;font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">
+        JavaScript wajib aktif untuk menjalankan aplikasi ini.
+      </div>
+    </noscript>
+
+    <div id="root">
+      <div id="app-boot" style="padding:16px;font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">
+        Memuat aplikasi…
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var root = document.getElementById('root');
+        var boot = document.getElementById('app-boot');
+
+        // Jika JS utama gagal load / crash sebelum mount, tampilkan pesan (biar nggak blank putih)
+        window.__appBootTimer = window.setTimeout(function () {
+          if (root && !root.dataset.appMounted && boot) {
+            boot.innerHTML =
+              '<div style="max-width:720px;">' +
+              '<h1 style="margin:0 0 8px;font-size:18px;font-weight:600;">Aplikasi tidak berhasil dijalankan</h1>' +
+              '<p style="margin:0 0 8px;">Buka DevTools → Console/Network untuk lihat error.</p>' +
+              '<p style="margin:0;">(Self-host) Pastikan build dilakukan dengan environment VITE_* yang benar.</p>' +
+              '</div>';
+          }
+        }, 4000);
+
+        window.__clearAppBootTimer = function () {
+          if (window.__appBootTimer) window.clearTimeout(window.__appBootTimer);
+        };
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
