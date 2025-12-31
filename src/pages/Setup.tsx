@@ -53,37 +53,61 @@ export default function Setup() {
   }, []);
 
   const checkSetupStatus = async () => {
-    // Check if setup is already completed
-    const { data: existingKeys } = await supabase
-      .from('api_keys')
-      .select('key_name')
-      .eq('key_name', 'setup_completed')
-      .maybeSingle();
+    try {
+      // Check if setup is already completed
+      const { data: existingKeys, error: existingKeysError } = await supabase
+        .from('api_keys')
+        .select('key_name')
+        .eq('key_name', 'setup_completed')
+        .maybeSingle();
 
-    if (existingKeys) {
-      // Setup already completed, redirect to auth
-      navigate('/auth');
-      return;
-    }
+      if (existingKeysError) {
+        console.error('Setup status error (api_keys):', existingKeysError);
+      }
 
-    // Check if there's already an admin user
-    const { data: adminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin')
-      .limit(1);
+      if (existingKeys) {
+        // Setup already completed, redirect to auth
+        navigate('/auth');
+        return;
+      }
 
-    if (adminRoles && adminRoles.length > 0) {
-      // Admin exists, mark setup as complete and redirect
-      await supabase.from('api_keys').insert({ 
-        key_name: 'setup_completed', 
-        key_value: 'true' 
+      // Check if there's already an admin user
+      const { data: adminRoles, error: adminRolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin')
+        .limit(1);
+
+      if (adminRolesError) {
+        console.error('Setup status error (user_roles):', adminRolesError);
+      }
+
+      if (adminRoles && adminRoles.length > 0) {
+        // Admin exists, mark setup as complete and redirect
+        const { error: markError } = await supabase.from('api_keys').insert({
+          key_name: 'setup_completed',
+          key_value: 'true',
+        });
+
+        if (markError) {
+          console.error('Setup mark complete error:', markError);
+        }
+
+        navigate('/auth');
+        return;
+      }
+    } catch (err: any) {
+      console.error('Setup check error:', err);
+      toast({
+        title: 'Gagal cek status setup',
+        description:
+          err?.message ||
+          'Tidak bisa menghubungi backend. Cek koneksi / konfigurasi deployment.',
+        variant: 'destructive',
       });
-      navigate('/auth');
-      return;
+    } finally {
+      setCheckingSetup(false);
     }
-
-    setCheckingSetup(false);
   };
 
   const handleNext = () => {
