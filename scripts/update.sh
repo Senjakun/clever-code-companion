@@ -46,6 +46,17 @@ git pull origin main || true
 echo -e "${YELLOW}[3/6]${NC} Installing dependencies..."
 npm install
 
+# Vite injects VITE_* variables at build time.
+# On a VPS, these must be present during `npm run build`.
+if [ -z "${VITE_SUPABASE_URL:-}" ] || [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+  echo -e "${RED}Missing required build environment variables.${NC}"
+  echo "Please set these before building:" 
+  echo "  - VITE_SUPABASE_URL"
+  echo "  - VITE_SUPABASE_PUBLISHABLE_KEY"
+  echo "Tip: use 'sudo -E' to preserve exported env vars." 
+  exit 1
+fi
+
 echo -e "${YELLOW}[4/6]${NC} Building project..."
 npm run build
 
